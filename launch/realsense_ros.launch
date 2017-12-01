@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="ISO-8859-15"?>
+<launch>
+
+  <node pkg="maplab_realsense" type="zr300_node" name="realsense_zr300">
+  </node>
+
+</launch>
