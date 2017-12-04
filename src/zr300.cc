@@ -216,12 +216,26 @@ void ZR300::registerCallbacks() {
         std::bind(&ZR300::frameCallback, this, std::placeholders::_1));
   }
   if (config_.infrared_enabled) {
+    zr300_device_->set_frame_callback(
+        rs::stream::infrared,
+        std::bind(&ZR300::frameCallback, this, std::placeholders::_1));
+    zr300_device_->set_frame_callback(
+        rs::stream::infrared2,
+        std::bind(&ZR300::frameCallback, this, std::placeholders::_1));
   }
 
-  if (config_.imu_enabled) {
+  if (config_.depth_enabled) {
+    zr300_device_->set_frame_callback(
+        rs::stream::depth,
+        std::bind(&ZR300::frameCallback, this, std::placeholders::_1));
   }
 
   if (config_.pointcloud_enabled) {
+    // TODO(mfehr): fix this, rs::stream::points is not a "native" stream,
+    // probably needs a different callback registration.
+    // zr300_device_->set_frame_callback(
+    //     rs::stream::points,
+    //     std::bind(&ZR300::frameCallback, this, std::placeholders::_1));
   }
 }
 
@@ -285,7 +299,7 @@ void ZR300::frameCallback(const rs::frame& frame) {
   switch (stream_type) {
     case rs::stream::fisheye: {
       if (fisheye_publisher_.getNumSubscribers() == 0) {
-        LOG_EVERY_N(WARNING, 300)
+        LOG_EVERY_N(WARNING, config_.fisheye_fps * 20)
             << "No subscribers for the fisheye images found!";
         return;
       }
@@ -328,7 +342,7 @@ void ZR300::frameCallback(const rs::frame& frame) {
     }
     case rs::stream::color: {
       if (color_publisher_.getNumSubscribers() == 0) {
-        LOG_EVERY_N(WARNING, 300)
+        LOG_EVERY_N(WARNING, config_.color_fps * 20)
             << "No subscribers for the color images found!";
         return;
       }
@@ -364,6 +378,96 @@ void ZR300::frameCallback(const rs::frame& frame) {
 
       break;
     }
+    case rs::stream::infrared2:
+      if (infrared_2_publisher_.getNumSubscribers() == 0) {
+        LOG_EVERY_N(WARNING, 300)
+            << "No subscribers for the infrared images found!";
+        return;
+      }
+    // Fall through intended.
+    case rs::stream::infrared: {
+      if (infrared_publisher_.getNumSubscribers() == 0) {
+        LOG_EVERY_N(WARNING, config_.depth_fps * 20)
+            << "No subscribers for the infrared 2 images found!";
+        return;
+      }
+
+      // Compose image message.
+      sensor_msgs::ImagePtr msg = boost::make_shared<sensor_msgs::Image>();
+
+      CHECK(device_time_translator_->isReadyToTranslate());
+      msg->header.stamp = device_time_translator_->translate(
+          sensor_timestamp_s * kMillisecondsToNanoseconds);
+
+      msg->height = frame.get_height();
+      msg->width = frame.get_width();
+      msg->step = msg->width;
+      msg->encoding = sensor_msgs::image_encodings::MONO8;
+      const size_t size = msg->height * msg->step;
+      msg->data.resize(size);
+      memcpy(msg->data.data(), frame.get_data(), size);
+
+      // Publish image.
+      if (stream_type == rs::stream::infrared) {
+        // Check if timestamp is strictly monotonically increasing.
+        CHECK_GT(sensor_timestamp_s, last_infrared_frame_timestamp_s_);
+        last_infrared_frame_timestamp_s_ = sensor_timestamp_s;
+
+        msg->header.frame_id = "infrared";
+        infrared_publisher_.publish(msg);
+      } else if (stream_type == rs::stream::infrared2) {
+        // Check if timestamp is strictly monotonically increasing.
+        CHECK_GT(sensor_timestamp_s, last_infrared_2_frame_timestamp_s_);
+        last_infrared_2_frame_timestamp_s_ = sensor_timestamp_s;
+
+        msg->header.frame_id = "infrared_2";
+        infrared_2_publisher_.publish(msg);
+      }
+      break;
+    }
+    case rs::stream::depth: {
+      if (depth_publisher_.getNumSubscribers() == 0) {
+        LOG_EVERY_N(WARNING, config_.depth_fps * 20)
+            << "No subscribers for the depth maps found!";
+        return;
+      }
+
+      // Check if timestamp is strictly monotonically increasing.
+      CHECK_GT(sensor_timestamp_s, last_depth_frame_timestamp_s_);
+      last_depth_frame_timestamp_s_ = sensor_timestamp_s;
+
+      // Retrieve and buffer depth map.
+      CHECK_GT(frame.get_frame_number(), latest_depth_frame_number_);
+      latest_depth_frame_number_ = frame.get_frame_number();
+      latest_depth_map_ =
+          cv::Mat(frame.get_height(), frame.get_width(), CV_16UC1);
+      memcpy(
+          latest_depth_map_.data, frame.get_data(),
+          latest_depth_map_.total() * latest_depth_map_.elemSize());
+
+      // Compose image message.
+      sensor_msgs::ImagePtr msg = boost::make_shared<sensor_msgs::Image>();
+
+      CHECK(device_time_translator_->isReadyToTranslate());
+      msg->header.stamp = device_time_translator_->translate(
+          sensor_timestamp_s * kMillisecondsToNanoseconds);
+
+      msg->header.frame_id = "depth";
+
+      msg->height = frame.get_height();
+      msg->width = frame.get_width();
+      msg->step = msg->width * 2;
+      msg->encoding = sensor_msgs::image_encodings::TYPE_16UC1;
+      const size_t size = msg->height * msg->step;
+      msg->data.resize(size);
+      memcpy(msg->data.data(), frame.get_data(), size);
+
+      // Publish image.
+      depth_publisher_.publish(msg);
+
+      break;
+    }
+
     default:
       LOG(FATAL) << "Unknown frame type: " << static_cast<int>(stream_type);
   }

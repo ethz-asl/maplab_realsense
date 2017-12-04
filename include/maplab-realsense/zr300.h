@@ -6,6 +6,7 @@
 #include <cuckoo_time_translator/DeviceTimeTranslator.h>
 #include <image_transport/publisher.h>
 #include <librealsense/rs.hpp>
+#include <opencv2/highgui/highgui.hpp>
 #include <ros/ros.h>
 
 #include "maplab-realsense/time-synchronizer.h"
@@ -114,6 +115,12 @@ class ZR300 {
 
   double last_color_frame_timestamp_s_ = -1.0;
   double last_fisheye_frame_timestamp_s_ = -1.0;
+  double last_infrared_frame_timestamp_s_ = -1.0;
+  double last_infrared_2_frame_timestamp_s_ = -1.0;
+  double last_depth_frame_timestamp_s_ = -1.0;
+
+  size_t latest_depth_frame_number_ = 0u;
+  cv::Mat latest_depth_map_;
 
   std::unique_ptr<cuckoo_time_translator::UnwrappedDeviceTimeTranslator>
       device_time_translator_;
