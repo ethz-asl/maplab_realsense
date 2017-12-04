@@ -2,11 +2,10 @@
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
-#include <ros/ros.h>
 #include <maplab-realsense/zr300.h>
+#include <ros/ros.h>
 
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
   ros::init(argc, argv, "zr300node");
   google::InitGoogleLogging(argv[0]);
   google::InstallFailureSignalHandler();

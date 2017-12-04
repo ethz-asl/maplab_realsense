@@ -7,7 +7,7 @@
 
 namespace maplab_realsense {
 
-struct RealSenseConfiguration {
+struct ZR300Config {
   // ROS config.
   static const std::string kFisheyeTopic;
   static const std::string kColorTopic;
@@ -112,8 +112,7 @@ struct RealSenseConfiguration {
   // Default: OPTIMIZED
   const double* depth_control_values = kDepthControlHigh;
 
-  static RealSenseConfiguration getFromRosParams(
-      const ros::NodeHandle& private_nh);
+  static ZR300Config getFromRosParams(const ros::NodeHandle& private_nh);
 };
 
 }  // namespace maplab_realsense

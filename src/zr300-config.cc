@@ -6,25 +6,24 @@
 
 namespace maplab_realsense {
 
-constexpr rs::option RealSenseConfiguration::kDepthControlOptions[10];
-constexpr double RealSenseConfiguration::kDepthControlDefault[10];
-constexpr double RealSenseConfiguration::kDepthControlOff[10];
-constexpr double RealSenseConfiguration::kDepthControlLow[10];
-constexpr double RealSenseConfiguration::kDepthControlMedium[10];
-constexpr double RealSenseConfiguration::kDepthControlOptimized[10];
-constexpr double RealSenseConfiguration::kDepthControlHigh[10];
+constexpr rs::option ZR300Config::kDepthControlOptions[10];
+constexpr double ZR300Config::kDepthControlDefault[10];
+constexpr double ZR300Config::kDepthControlOff[10];
+constexpr double ZR300Config::kDepthControlLow[10];
+constexpr double ZR300Config::kDepthControlMedium[10];
+constexpr double ZR300Config::kDepthControlOptimized[10];
+constexpr double ZR300Config::kDepthControlHigh[10];
 
-const std::string RealSenseConfiguration::kFisheyeTopic = "fisheye";
-const std::string RealSenseConfiguration::kColorTopic = "color";
-const std::string RealSenseConfiguration::kImuTopic = "imu";
-const std::string RealSenseConfiguration::kInfraredTopic = "ir_1";
-const std::string RealSenseConfiguration::kInfrared2Topic = "ir_2";
-const std::string RealSenseConfiguration::kDepthTopic = "depth";
-const std::string RealSenseConfiguration::kPointCloudTopic = "pointcloud";
+const std::string ZR300Config::kFisheyeTopic = "fisheye";
+const std::string ZR300Config::kColorTopic = "color";
+const std::string ZR300Config::kImuTopic = "imu";
+const std::string ZR300Config::kInfraredTopic = "ir_1";
+const std::string ZR300Config::kInfrared2Topic = "ir_2";
+const std::string ZR300Config::kDepthTopic = "depth";
+const std::string ZR300Config::kPointCloudTopic = "pointcloud";
 
-RealSenseConfiguration RealSenseConfiguration::getFromRosParams(
-    const ros::NodeHandle& private_nh) {
-  RealSenseConfiguration config;
+ZR300Config ZR300Config::getFromRosParams(const ros::NodeHandle& private_nh) {
+  ZR300Config config;
 
   private_nh.param("imu/enabled", config.imu_enabled, config.imu_enabled);
   if (config.imu_enabled) {

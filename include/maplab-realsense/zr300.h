@@ -36,7 +36,7 @@ class ZR300 {
   ros::NodeHandle nh_;
   ros::NodeHandle private_nh_;
 
-  RealSenseConfiguration config_;
+  ZR300Config config_;
 
   image_transport::Publisher fisheye_publisher_;
   image_transport::Publisher color_publisher_;

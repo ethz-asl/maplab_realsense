@@ -13,7 +13,7 @@ namespace maplab_realsense {
 ZR300::ZR300(
     ros::NodeHandle nh, ros::NodeHandle private_nh, const std::string& frameId)
     : nh_(nh), private_nh_(private_nh), gyro_measurement_index_(0u) {
-  config_ = RealSenseConfiguration::getFromRosParams(private_nh);
+  config_ = ZR300Config::getFromRosParams(private_nh);
 
   initializePublishers(&nh);
 
