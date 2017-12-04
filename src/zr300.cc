@@ -9,6 +9,104 @@
 
 namespace maplab_realsense {
 
+RealSenseConfiguration RealSenseConfiguration::getFromRosParams(
+    const ros::NodeHandle& private_nh) {
+  RealSenseConfiguration config;
+
+  private_nh.param(
+      "fisheye/enabled", config.fisheye_enabled, config.fisheye_enabled);
+  if (config.fisheye_enabled) {
+    private_nh.param(
+        "fisheye/width", config.fisheye_width, config.fisheye_width);
+    private_nh.param(
+        "fisheye/height", config.fisheye_height, config.fisheye_height);
+    private_nh.param("fisheye/fps", config.fisheye_fps, config.fisheye_fps);
+    private_nh.param(
+        "fisheye/enable_auto_exposure", config.fisheye_enable_auto_exposure,
+        config.fisheye_enable_auto_exposure);
+    private_nh.param(
+        "fisheye/exposure_ms", config.fisheye_exposure_ms,
+        config.fisheye_exposure_ms);
+    private_nh.param("fisheye/gain", config.fisheye_gain, config.fisheye_gain);
+    private_nh.param(
+        "fisheye/subsample_factor", config.fisheye_subsample_factor,
+        config.fisheye_subsample_factor);
+  }
+
+  // Depth/IR/pointcloud config.
+  private_nh.param("depth/enabled", config.depth_enabled, config.depth_enabled);
+  private_nh.param(
+      "depth/enable_pointcloud", config.pointcloud_enabled,
+      config.pointcloud_enabled);
+  private_nh.param(
+      "infrared/enabled", config.infrared_enabled, config.infrared_enabled);
+  if (config.depth_enabled || config.pointcloud_enabled ||
+      config.infrared_enabled) {
+    private_nh.param("depth/width", config.depth_width, config.depth_width);
+    private_nh.param("depth/height", config.depth_height, config.depth_height);
+    private_nh.param("depth/fps", config.depth_fps, 30);
+    private_nh.param(
+        "depth/subsample_factor", config.depth_subsample_factor,
+        config.depth_subsample_factor);
+    private_nh.param(
+        "depth/median_filter_enabled", config.depth_median_filter_enabled,
+        config.depth_median_filter_enabled);
+    private_nh.param(
+        "depth/min_max_filter_enabled", config.depth_min_max_filter_enabled,
+        config.depth_min_max_filter_enabled);
+    private_nh.param(
+        "depth/min_max_filter_size", config.depth_min_max_filter_size,
+        config.depth_min_max_filter_size);
+    private_nh.param(
+        "depth/min_max_filter_threshold", config.depth_min_max_filter_threshold,
+        config.depth_min_max_filter_threshold);
+
+    if (config.infrared_enabled) {
+      private_nh.param(
+          "infrared/subsample_factor", config.infrared_subsample_factor,
+          config.infrared_subsample_factor);
+    }
+
+    if (config.pointcloud_enabled) {
+      private_nh.param(
+          "pointcloud/min_h", config.pointcloud_hsv_min_h,
+          config.pointcloud_hsv_min_h);
+      private_nh.param(
+          "pointcloud/min_s", config.pointcloud_hsv_min_s,
+          config.pointcloud_hsv_min_s);
+      private_nh.param(
+          "pointcloud/min_v", config.pointcloud_hsv_min_v,
+          config.pointcloud_hsv_min_v);
+
+      private_nh.param(
+          "pointcloud/max_h", config.pointcloud_hsv_max_h,
+          config.pointcloud_hsv_max_h);
+      private_nh.param(
+          "pointcloud/max_s", config.pointcloud_hsv_max_s,
+          config.pointcloud_hsv_max_s);
+      private_nh.param(
+          "pointcloud/max_v", config.pointcloud_hsv_max_v,
+          config.pointcloud_hsv_max_v);
+      private_nh.param(
+          "pointcloud/color_filter_enabled",
+          config.pointcloud_color_filter_enabled,
+          config.pointcloud_color_filter_enabled);
+    }
+  }
+
+  private_nh.param("color/enabled", config.color_enabled, config.color_enabled);
+  if (config.color_enabled || config.pointcloud_enabled) {
+    private_nh.param("color/width", config.color_width, config.color_width);
+    private_nh.param("color/height", config.color_height, config.color_height);
+    private_nh.param("color/fps", config.color_fps, config.color_fps);
+    private_nh.param(
+        "color/subsample_factor", config.color_subsample_factor,
+        config.color_subsample_factor);
+  }
+
+  return config;
+}
+
 const std::string ZR300::kFisheyeTopic = "fisheye";
 const std::string ZR300::kColorTopic = "color";
 const std::string ZR300::kImuTopic = "imu";
@@ -16,6 +114,8 @@ const std::string ZR300::kImuTopic = "imu";
 ZR300::ZR300(
     ros::NodeHandle nh, ros::NodeHandle private_nh, const std::string& frameId)
     : nh_(nh), private_nh_(private_nh), gyro_measurement_index_(0u) {
+  config_ = RealSenseConfiguration::getFromRosParams(private_nh);
+
   auto advertiseCamera =
       [nh](const std::string& name) -> image_transport::Publisher {
     ros::NodeHandle _nh(nh, name);
@@ -52,18 +152,20 @@ bool ZR300::start() {
 
   if (zr300_device_->supports(rs::capabilities::motion_events)) {
     zr300_device_->enable_motion_tracking(
-        std::bind(&ZR300::motionCallback, this, std::placeholders::_1),
-        std::bind(&ZR300::timestampCallback, this, std::placeholders::_1));
+        std::bind(&ZR300::motionCallback, this, std::placeholders::_1));
   } else {
-    ROS_ERROR("motion module not supported");
+    LOG(FATAL) << "This sensor does not support motion tracking mode!";
     return false;
   }
 
-  enableCameraStreams();
+  enableSensorStreams();
   configureStaticOptions();
 
   zr300_device_->set_frame_callback(
       rs::stream::fisheye,
+      std::bind(&ZR300::frameCallback, this, std::placeholders::_1));
+  zr300_device_->set_frame_callback(
+      rs::stream::color,
       std::bind(&ZR300::frameCallback, this, std::placeholders::_1));
   zr300_device_->start(rs::source::all_sources);
 
@@ -81,27 +183,41 @@ void ZR300::configureStaticOptions() {
   zr300_device_->set_option(rs::option::fisheye_strobe, 1);
 
   zr300_device_->set_option(
+      rs::option::fisheye_gain, realsense_config_.fisheye_gain);
+  zr300_device_->set_option(
+      rs::option::fisheye_exposure, realsense_config_.fisheye_exposure_ms);
+  zr300_device_->set_option(
       rs::option::fisheye_color_auto_exposure,
-      realsense_config_.fisheye_enable_auto_exposure_);
-  zr300_device_->set_option(
-      rs::option::fisheye_gain, realsense_config_.fisheye_gain_);
-  zr300_device_->set_option(
-      rs::option::fisheye_exposure, realsense_config_.fisheye_exposure_ms_);
+      realsense_config_.fisheye_enable_auto_exposure);
   zr300_device_->set_option(rs::option::fisheye_color_auto_exposure_mode, 2);
-
   // Flicker rate of ambient light.
   zr300_device_->set_option(rs::option::fisheye_color_auto_exposure_rate, 50);
 }
 
-void ZR300::enableCameraStreams() {
-  zr300_device_->enable_stream(
-      rs::stream::fisheye, realsense_config_.fisheye_width,
-      realsense_config_.fisheye_height, rs::format::raw8,
-      realsense_config_.fisheye_fps);
-  zr300_device_->enable_stream(
-      rs::stream::color, realsense_config_.color_width,
-      realsense_config_.color_height, rs::format::rgb8,
-      realsense_config_.color_fps);
+void ZR300::enableSensorStreams() {
+  if (config_.fisheye_enabled) {
+    zr300_device_->enable_stream(
+        rs::stream::fisheye, config_.fisheye_width, config_.fisheye_height,
+        rs::format::raw8, config_.fisheye_fps);
+  }
+  if (config_.depth_enabled || config_.pointcloud_enabled) {
+    zr300_device_->enable_stream(
+        rs::stream::depth, config_.depth_width, config_.depth_height,
+        rs::format::z16, config_.depth_fps);
+  }
+  if (config_.infrared_enabled) {
+    zr300_device_->enable_stream(
+        rs::stream::infrared, config_.depth_width, config_.depth_height,
+        rs::format::y8, config_.depth_fps);
+    zr300_device_->enable_stream(
+        rs::stream::infrared2, config_.depth_width, config_.depth_height,
+        rs::format::y8, config_.depth_fps);
+  }
+  if (config_.color_enabled || config_.pointcloud_enabled) {
+    zr300_device_->enable_stream(
+        rs::stream::color, config_.color_width, config_.color_height,
+        rs::format::rgb8, config_.color_fps);
+  }
 }
 
 void ZR300::frameCallback(const rs::frame& frame) {
@@ -109,27 +225,45 @@ void ZR300::frameCallback(const rs::frame& frame) {
 
   const rs::stream stream_type = frame.get_stream_type();
   const size_t frame_number = static_cast<size_t>(frame.get_frame_number());
+  const double sensor_timestamp_s = static_cast<double>(frame.get_timestamp());
 
-  VLOG(100) << "Frame " << stream_type << " " << frame_number;
+  VLOG(100) << "Frame data:"
+            << "\n\tROS time: " << ros::Time::now()
+            << "\n\tSensor timestamp: " << std::setprecision(8)
+            << frame.get_timestamp() << "\n\tsource: " << std::setw(13)
+            << frame.get_stream_type() << "\n\tframe_num: " << frame_number
+            << "\n\tdomain: "
+            << static_cast<int>(frame.get_frame_timestamp_domain());
 
   switch (stream_type) {
     case rs::stream::fisheye: {
-      if (frame.get_frame_timestamp_domain() !=
-          rs::timestamp_domain::microcontroller) {
-        LOG(ERROR) << "Timestamp of frame " << frame.get_frame_number()
-                   << " might be corrupt. Skipping....";
+      if (fisheye_publisher_.getNumSubscribers() == 0) {
+        LOG_EVERY_N(WARNING, 300)
+            << "No subscribers for the fisheye images found!";
         return;
       }
 
-      const double hw_timestamp =
-          frame_timestamp_synchronizer_.getTimestampForFrame(
-              frame.get_frame_number());
+      if (frame.get_frame_timestamp_domain() !=
+          rs::timestamp_domain::microcontroller) {
+        LOG(ERROR) << "The timestamp of frame " << frame.get_frame_number()
+                   << " of type " << stream_type
+                   << " did not originate from the motion tracking "
+                   << "microcontroller. The timestamp domain is set to: "
+                   << static_cast<int>(frame.get_frame_timestamp_domain())
+                   << " (camera = 0, microcontroller = 1). Skipping frame!";
+        return;
+      }
 
+      // Check if timestamp is strictly monotonically increasing.
+      CHECK_GT(sensor_timestamp_s, last_fisheye_frame_timestamp_s_);
+      last_fisheye_frame_timestamp_s_ = sensor_timestamp_s;
+
+      // Compose image message.
       sensor_msgs::ImagePtr msg = boost::make_shared<sensor_msgs::Image>();
 
       CHECK(device_time_translator_->isReadyToTranslate());
       msg->header.stamp = device_time_translator_->translate(
-          hw_timestamp * kMillisecondsToNanoseconds);
+          sensor_timestamp_s * kMillisecondsToNanoseconds);
 
       msg->header.frame_id = "fisheye";
 
@@ -140,11 +274,47 @@ void ZR300::frameCallback(const rs::frame& frame) {
       const size_t size = msg->height * msg->step;
       msg->data.resize(size);
       memcpy(msg->data.data(), frame.get_data(), size);
+
+      // Publish image message.
       fisheye_publisher_.publish(msg);
       break;
     }
     case rs::stream::color: {
-      LOG(WARNING) << "Received color frame: TODO(mfehr): Implement publisher!";
+      if (color_publisher_.getNumSubscribers() == 0) {
+        LOG_EVERY_N(WARNING, 300)
+            << "No subscribers for the color images found!";
+        return;
+      }
+
+      // Check if timestamp is strictly monotonically increasing.
+      CHECK_GT(sensor_timestamp_s, last_color_frame_timestamp_s_);
+      last_color_frame_timestamp_s_ = sensor_timestamp_s;
+
+      // Compose image message.
+      sensor_msgs::ImagePtr msg = boost::make_shared<sensor_msgs::Image>();
+
+      CHECK(device_time_translator_->isReadyToTranslate());
+      msg->header.stamp = device_time_translator_->translate(
+          sensor_timestamp_s * kMillisecondsToNanoseconds);
+
+      msg->header.frame_id = "color";
+
+      msg->height = frame.get_height();
+      msg->width = frame.get_width();
+      msg->step = msg->width * 3;
+      msg->encoding = sensor_msgs::image_encodings::RGB8;
+      const size_t size = msg->height * msg->step;
+      msg->data.resize(size);
+      memcpy(msg->data.data(), frame.get_data(), size);
+
+      // Compose camera info message.
+      // sensor_msgs::CameraInfoPtr camera_info_msg =
+      //     boost::make_shared<sensor_msgs::CameraInfo>(infoColor_);
+      // camera_info_msg->header = msg->header;
+
+      // Publish image.
+      color_publisher_.publish(msg);
+
       break;
     }
     default:
@@ -181,6 +351,11 @@ void ZR300::motionCallback(const rs::motion_data& entry) {
           Eigen::Vector3d(entry.axes[0], entry.axes[1], entry.axes[2]),
           &imu_data);
 
+      if (imu_publisher_.getNumSubscribers() == 0) {
+        LOG_EVERY_N(WARNING, 2000) << "No subscribers for the IMU data found!";
+        return;
+      }
+
       for (const ImuSynchronizer::ImuData& item : imu_data) {
         sensor_msgs::ImuPtr msg = boost::make_shared<sensor_msgs::Imu>();
 
@@ -216,13 +391,4 @@ void ZR300::motionCallback(const rs::motion_data& entry) {
                  << static_cast<int>(entry.timestamp_data.source_id);
   }
 }
-
-void ZR300::timestampCallback(const rs::timestamp_data& entry) {
-  const rs::event timestamp_event = static_cast<rs::event>(entry.source_id);
-  if (timestamp_event == rs::event::event_imu_motion_cam) {
-    frame_timestamp_synchronizer_.registerTimestamp(
-        entry.frame_number, (double)entry.timestamp);
-  }
-}
-
 }  // namespace maplab_realsense
