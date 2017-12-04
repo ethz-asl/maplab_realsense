@@ -51,11 +51,11 @@ struct ZR300Config {
   float depth_min_max_filter_threshold = 0.3f;
 
   // IR config.
-  bool infrared_enabled = true;
+  bool infrared_enabled = false;
   int infrared_subsample_factor = 1;
 
   // Pointcloud config.
-  bool pointcloud_enabled = true;
+  bool pointcloud_enabled = false;
   bool pointcloud_color_filter_enabled = false;
   int pointcloud_hsv_min_h = 0;
   int pointcloud_hsv_min_s = 0;

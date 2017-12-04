@@ -195,22 +195,22 @@ void ZR300::frameCallback(const rs::frame& frame) {
             << "\n\tdomain: "
             << static_cast<int>(frame.get_frame_timestamp_domain());
 
+  if (frame.get_frame_timestamp_domain() !=
+      rs::timestamp_domain::microcontroller) {
+    LOG(ERROR) << "The timestamp of frame " << frame.get_frame_number()
+               << " of type " << stream_type
+               << " did not originate from the motion tracking "
+               << "microcontroller. The timestamp domain is set to: "
+               << static_cast<int>(frame.get_frame_timestamp_domain())
+               << " (camera = 0, microcontroller = 1). Skipping frame!";
+    return;
+  }
+
   switch (stream_type) {
     case rs::stream::fisheye: {
       if (fisheye_publisher_.getNumSubscribers() == 0) {
         LOG_EVERY_N(WARNING, config_.fisheye_fps * 20)
             << "No subscribers for the fisheye images found!";
-        return;
-      }
-
-      if (frame.get_frame_timestamp_domain() !=
-          rs::timestamp_domain::microcontroller) {
-        LOG(ERROR) << "The timestamp of frame " << frame.get_frame_number()
-                   << " of type " << stream_type
-                   << " did not originate from the motion tracking "
-                   << "microcontroller. The timestamp domain is set to: "
-                   << static_cast<int>(frame.get_frame_timestamp_domain())
-                   << " (camera = 0, microcontroller = 1). Skipping frame!";
         return;
       }
 
