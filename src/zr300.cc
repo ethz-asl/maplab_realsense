@@ -10,122 +10,6 @@
 
 namespace maplab_realsense {
 
-constexpr rs::option RealSenseConfiguration::kDepthControlOptions[10];
-constexpr double RealSenseConfiguration::kDepthControlDefault[10];
-constexpr double RealSenseConfiguration::kDepthControlOff[10];
-constexpr double RealSenseConfiguration::kDepthControlLow[10];
-constexpr double RealSenseConfiguration::kDepthControlMedium[10];
-constexpr double RealSenseConfiguration::kDepthControlOptimized[10];
-constexpr double RealSenseConfiguration::kDepthControlHigh[10];
-
-const std::string ZR300::kFisheyeTopic = "fisheye";
-const std::string ZR300::kColorTopic = "color";
-const std::string ZR300::kImuTopic = "imu";
-const std::string ZR300::kInfraredTopic = "ir_1";
-const std::string ZR300::kInfrared2Topic = "ir_2";
-const std::string ZR300::kDepthTopic = "depth";
-const std::string ZR300::kPointCloudTopic = "pointcloud";
-
-RealSenseConfiguration RealSenseConfiguration::getFromRosParams(
-    const ros::NodeHandle& private_nh) {
-  RealSenseConfiguration config;
-
-  private_nh.param("imu/enabled", config.imu_enabled, config.imu_enabled);
-
-  private_nh.param(
-      "fisheye/enabled", config.fisheye_enabled, config.fisheye_enabled);
-  if (config.fisheye_enabled) {
-    private_nh.param(
-        "fisheye/width", config.fisheye_width, config.fisheye_width);
-    private_nh.param(
-        "fisheye/height", config.fisheye_height, config.fisheye_height);
-    private_nh.param("fisheye/fps", config.fisheye_fps, config.fisheye_fps);
-    private_nh.param(
-        "fisheye/enable_auto_exposure", config.fisheye_enable_auto_exposure,
-        config.fisheye_enable_auto_exposure);
-    private_nh.param(
-        "fisheye/exposure_ms", config.fisheye_exposure_ms,
-        config.fisheye_exposure_ms);
-    private_nh.param("fisheye/gain", config.fisheye_gain, config.fisheye_gain);
-    private_nh.param(
-        "fisheye/subsample_factor", config.fisheye_subsample_factor,
-        config.fisheye_subsample_factor);
-  }
-
-  // Depth/IR/pointcloud config.
-  private_nh.param("depth/enabled", config.depth_enabled, config.depth_enabled);
-  private_nh.param(
-      "depth/enable_pointcloud", config.pointcloud_enabled,
-      config.pointcloud_enabled);
-  private_nh.param(
-      "infrared/enabled", config.infrared_enabled, config.infrared_enabled);
-  if (config.depth_enabled || config.pointcloud_enabled ||
-      config.infrared_enabled) {
-    private_nh.param("depth/width", config.depth_width, config.depth_width);
-    private_nh.param("depth/height", config.depth_height, config.depth_height);
-    private_nh.param("depth/fps", config.depth_fps, 30);
-    private_nh.param(
-        "depth/subsample_factor", config.depth_subsample_factor,
-        config.depth_subsample_factor);
-    private_nh.param(
-        "depth/median_filter_enabled", config.depth_median_filter_enabled,
-        config.depth_median_filter_enabled);
-    private_nh.param(
-        "depth/min_max_filter_enabled", config.depth_min_max_filter_enabled,
-        config.depth_min_max_filter_enabled);
-    private_nh.param(
-        "depth/min_max_filter_size", config.depth_min_max_filter_size,
-        config.depth_min_max_filter_size);
-    private_nh.param(
-        "depth/min_max_filter_threshold", config.depth_min_max_filter_threshold,
-        config.depth_min_max_filter_threshold);
-
-    if (config.infrared_enabled) {
-      private_nh.param(
-          "infrared/subsample_factor", config.infrared_subsample_factor,
-          config.infrared_subsample_factor);
-    }
-
-    if (config.pointcloud_enabled) {
-      private_nh.param(
-          "pointcloud/min_h", config.pointcloud_hsv_min_h,
-          config.pointcloud_hsv_min_h);
-      private_nh.param(
-          "pointcloud/min_s", config.pointcloud_hsv_min_s,
-          config.pointcloud_hsv_min_s);
-      private_nh.param(
-          "pointcloud/min_v", config.pointcloud_hsv_min_v,
-          config.pointcloud_hsv_min_v);
-
-      private_nh.param(
-          "pointcloud/max_h", config.pointcloud_hsv_max_h,
-          config.pointcloud_hsv_max_h);
-      private_nh.param(
-          "pointcloud/max_s", config.pointcloud_hsv_max_s,
-          config.pointcloud_hsv_max_s);
-      private_nh.param(
-          "pointcloud/max_v", config.pointcloud_hsv_max_v,
-          config.pointcloud_hsv_max_v);
-      private_nh.param(
-          "pointcloud/color_filter_enabled",
-          config.pointcloud_color_filter_enabled,
-          config.pointcloud_color_filter_enabled);
-    }
-  }
-
-  private_nh.param("color/enabled", config.color_enabled, config.color_enabled);
-  if (config.color_enabled || config.pointcloud_enabled) {
-    private_nh.param("color/width", config.color_width, config.color_width);
-    private_nh.param("color/height", config.color_height, config.color_height);
-    private_nh.param("color/fps", config.color_fps, config.color_fps);
-    private_nh.param(
-        "color/subsample_factor", config.color_subsample_factor,
-        config.color_subsample_factor);
-  }
-
-  return config;
-}
-
 ZR300::ZR300(
     ros::NodeHandle nh, ros::NodeHandle private_nh, const std::string& frameId)
     : nh_(nh), private_nh_(private_nh), gyro_measurement_index_(0u) {
@@ -189,26 +73,26 @@ void ZR300::initializePublishers(ros::NodeHandle* nh) {
   };
 
   if (config_.fisheye_enabled) {
-    fisheye_publisher_ = advertiseCamera(kFisheyeTopic);
+    fisheye_publisher_ = advertiseCamera(config_.kFisheyeTopic);
   }
   if (config_.color_enabled) {
-    color_publisher_ = advertiseCamera(kColorTopic);
+    color_publisher_ = advertiseCamera(config_.kColorTopic);
   }
   if (config_.infrared_enabled) {
-    infrared_publisher_ = advertiseCamera(kInfraredTopic);
-    infrared_2_publisher_ = advertiseCamera(kInfrared2Topic);
+    infrared_publisher_ = advertiseCamera(config_.kInfraredTopic);
+    infrared_2_publisher_ = advertiseCamera(config_.kInfrared2Topic);
   }
   if (config_.depth_enabled) {
-    depth_publisher_ = advertiseCamera(kDepthTopic);
+    depth_publisher_ = advertiseCamera(config_.kDepthTopic);
   }
 
   if (config_.imu_enabled) {
-    imu_publisher_ = nh->advertise<sensor_msgs::Imu>(kImuTopic, 1);
+    imu_publisher_ = nh->advertise<sensor_msgs::Imu>(config_.kImuTopic, 1);
   }
 
   if (config_.pointcloud_enabled) {
     pointcloud_publisher_ =
-        nh->advertise<sensor_msgs::PointCloud2>(kPointCloudTopic, 1);
+        nh->advertise<sensor_msgs::PointCloud2>(config_.kPointCloudTopic, 1);
   }
 }
 
@@ -507,7 +391,8 @@ void ZR300::motionCallback(const rs::motion_data& entry) {
           time_now);
 
       ++gyro_measurement_index_;
-      if (gyro_measurement_index_ < kSkipNFirstGyroMeasurements) {
+      if (gyro_measurement_index_ <
+          static_cast<size_t>(config_.imu_skip_first_n_gyro_measurements)) {
         return;
       }
 
