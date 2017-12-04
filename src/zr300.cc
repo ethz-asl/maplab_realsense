@@ -5,6 +5,7 @@
 #include <librealsense/rs.hpp>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/Imu.h>
+#include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/image_encodings.h>
 
 namespace maplab_realsense {
@@ -12,6 +13,8 @@ namespace maplab_realsense {
 RealSenseConfiguration RealSenseConfiguration::getFromRosParams(
     const ros::NodeHandle& private_nh) {
   RealSenseConfiguration config;
+
+  private_nh.param("imu/enabled", config.imu_enabled, config.imu_enabled);
 
   private_nh.param(
       "fisheye/enabled", config.fisheye_enabled, config.fisheye_enabled);
@@ -110,22 +113,17 @@ RealSenseConfiguration RealSenseConfiguration::getFromRosParams(
 const std::string ZR300::kFisheyeTopic = "fisheye";
 const std::string ZR300::kColorTopic = "color";
 const std::string ZR300::kImuTopic = "imu";
+const std::string ZR300::kInfraredTopic = "ir_1";
+const std::string ZR300::kInfrared2Topic = "ir_2";
+const std::string ZR300::kDepthTopic = "depth";
+const std::string ZR300::kPointCloudTopic = "pointcloud";
 
 ZR300::ZR300(
     ros::NodeHandle nh, ros::NodeHandle private_nh, const std::string& frameId)
     : nh_(nh), private_nh_(private_nh), gyro_measurement_index_(0u) {
   config_ = RealSenseConfiguration::getFromRosParams(private_nh);
 
-  auto advertiseCamera =
-      [nh](const std::string& name) -> image_transport::Publisher {
-    ros::NodeHandle _nh(nh, name);
-    image_transport::ImageTransport it(_nh);
-    return it.advertise(name, 1);
-  };
-
-  color_publisher_ = advertiseCamera(kColorTopic);
-  fisheye_publisher_ = advertiseCamera(kFisheyeTopic);
-  imu_publisher_ = nh.advertise<sensor_msgs::Imu>(kImuTopic, 1);
+  initializePublishers(&nh);
 
   device_time_translator_.reset(
       new cuckoo_time_translator::UnwrappedDeviceTimeTranslator(
@@ -160,13 +158,8 @@ bool ZR300::start() {
 
   enableSensorStreams();
   configureStaticOptions();
+  registerCallbacks();
 
-  zr300_device_->set_frame_callback(
-      rs::stream::fisheye,
-      std::bind(&ZR300::frameCallback, this, std::placeholders::_1));
-  zr300_device_->set_frame_callback(
-      rs::stream::color,
-      std::bind(&ZR300::frameCallback, this, std::placeholders::_1));
   zr300_device_->start(rs::source::all_sources);
 
   return true;
@@ -177,18 +170,72 @@ void ZR300::stop() {
   zr300_device_->disable_motion_tracking();
 }
 
+void ZR300::initializePublishers(ros::NodeHandle* nh) {
+  CHECK_NOTNULL(nh);
+
+  auto advertiseCamera =
+      [nh](const std::string& name) -> image_transport::Publisher {
+    ros::NodeHandle _nh(*nh, name);
+    image_transport::ImageTransport it(_nh);
+    return it.advertise(name, 1);
+  };
+
+  if (config_.fisheye_enabled) {
+    fisheye_publisher_ = advertiseCamera(kFisheyeTopic);
+  }
+  if (config_.color_enabled) {
+    color_publisher_ = advertiseCamera(kColorTopic);
+  }
+  if (config_.infrared_enabled) {
+    infrared_publisher_ = advertiseCamera(kInfraredTopic);
+    infrared_2_publisher_ = advertiseCamera(kInfrared2Topic);
+  }
+  if (config_.depth_enabled) {
+    depth_publisher_ = advertiseCamera(kDepthTopic);
+  }
+
+  if (config_.imu_enabled) {
+    imu_publisher_ = nh->advertise<sensor_msgs::Imu>(kImuTopic, 1);
+  }
+
+  if (config_.pointcloud_enabled) {
+    pointcloud_publisher_ =
+        nh->advertise<sensor_msgs::PointCloud2>(kPointCloudTopic, 1);
+  }
+}
+
+void ZR300::registerCallbacks() {
+  if (config_.fisheye_enabled) {
+    zr300_device_->set_frame_callback(
+        rs::stream::fisheye,
+        std::bind(&ZR300::frameCallback, this, std::placeholders::_1));
+  }
+  if (config_.color_enabled) {
+    zr300_device_->set_frame_callback(
+        rs::stream::color,
+        std::bind(&ZR300::frameCallback, this, std::placeholders::_1));
+  }
+  if (config_.infrared_enabled) {
+  }
+
+  if (config_.imu_enabled) {
+  }
+
+  if (config_.pointcloud_enabled) {
+  }
+}
+
 void ZR300::configureStaticOptions() {
   // This option is necessary to make sure the data is properly synchronized
   // inside the sensor. Keep it turned on.
   zr300_device_->set_option(rs::option::fisheye_strobe, 1);
 
+  zr300_device_->set_option(rs::option::fisheye_gain, config_.fisheye_gain);
   zr300_device_->set_option(
-      rs::option::fisheye_gain, realsense_config_.fisheye_gain);
-  zr300_device_->set_option(
-      rs::option::fisheye_exposure, realsense_config_.fisheye_exposure_ms);
+      rs::option::fisheye_exposure, config_.fisheye_exposure_ms);
   zr300_device_->set_option(
       rs::option::fisheye_color_auto_exposure,
-      realsense_config_.fisheye_enable_auto_exposure);
+      config_.fisheye_enable_auto_exposure);
   zr300_device_->set_option(rs::option::fisheye_color_auto_exposure_mode, 2);
   // Flicker rate of ambient light.
   zr300_device_->set_option(rs::option::fisheye_color_auto_exposure_rate, 50);

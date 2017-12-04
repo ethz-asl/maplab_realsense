@@ -13,6 +13,9 @@
 namespace maplab_realsense {
 
 struct RealSenseConfiguration {
+  // Imu config.
+  bool imu_enabled = true;
+
   // Fisheye config.
   bool fisheye_enabled = true;
   bool fisheye_enable_auto_exposure = true;
@@ -73,8 +76,10 @@ class ZR300 {
   void motionCallback(const rs::motion_data& entry);
   void frameCallback(const rs::frame& frame);
 
+  void initializePublishers(ros::NodeHandle* nh);
   void enableSensorStreams();
   void configureStaticOptions();
+  void registerCallbacks();
 
   ros::NodeHandle nh_;
   ros::NodeHandle private_nh_;
@@ -83,7 +88,11 @@ class ZR300 {
 
   image_transport::Publisher fisheye_publisher_;
   image_transport::Publisher color_publisher_;
+  image_transport::Publisher infrared_publisher_;
+  image_transport::Publisher infrared_2_publisher_;
+  image_transport::Publisher depth_publisher_;
   ros::Publisher imu_publisher_;
+  ros::Publisher pointcloud_publisher_;
 
   rs::context zr300_context_;
   rs::device* zr300_device_;
@@ -91,13 +100,15 @@ class ZR300 {
   static const std::string kFisheyeTopic;
   static const std::string kColorTopic;
   static const std::string kImuTopic;
+  static const std::string kInfraredTopic;
+  static const std::string kInfrared2Topic;
+  static const std::string kDepthTopic;
+  static const std::string kPointCloudTopic;
 
   static constexpr double kImuTimestampToSeconds = 1e-3;
 
   static constexpr int kSecondsToNanoseconds = 1e9;
   static constexpr int kMillisecondsToNanoseconds = 1e6;
-
-  RealSenseConfiguration realsense_config_;
 
   ImuSynchronizer imu_synchronizer_;
 
