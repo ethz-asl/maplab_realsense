@@ -6,6 +6,7 @@
 #include <cuckoo_time_translator/DeviceTimeTranslator.h>
 #include <image_transport/publisher.h>
 #include <librealsense/rs.hpp>
+#include <librealsense/rsutil.h>
 #include <opencv2/highgui/highgui.hpp>
 #include <ros/ros.h>
 
@@ -59,6 +60,54 @@ struct RealSenseConfiguration {
   int pointcloud_hsv_max_h = 255;
   int pointcloud_hsv_max_s = 255;
   int pointcloud_hsv_max_v = 255;
+
+  // Depth control config.
+  static constexpr rs::option kDepthControlOptions[10] = {
+      rs::option::r200_depth_control_estimate_median_decrement,
+      rs::option::r200_depth_control_estimate_median_increment,
+      rs::option::r200_depth_control_median_threshold,
+      rs::option::r200_depth_control_score_minimum_threshold,
+      rs::option::r200_depth_control_score_maximum_threshold,
+      rs::option::r200_depth_control_texture_count_threshold,
+      rs::option::r200_depth_control_texture_difference_threshold,
+      rs::option::r200_depth_control_second_peak_threshold,
+      rs::option::r200_depth_control_neighbor_threshold,
+      rs::option::r200_depth_control_lr_threshold};
+
+  // DEFAULT:
+  // Default settings on chip. Similiar to the medium
+  // setting and best for outdoors.
+  static constexpr double kDepthControlDefault[10] = {5, 5,  192, 1, 512,
+                                                      6, 24, 27,  7, 24};
+  // OFF:
+  // Disable almost all hardware-based outlier removal
+  static constexpr double kDepthControlOff[10] = {5, 5, 0, 0, 1023,
+                                                  0, 0, 0, 0, 2047};
+
+  // LOW:
+  // Provide a depthmap with a lower number of outliers
+  // removed, which has minimal false negatives.
+  static constexpr double kDepthControlLow[10] = {5, 5,  115, 1, 512,
+                                                  6, 18, 25,  3, 24};
+  // MEDIUM:
+  // Provide a depthmap with a medium number of outliers
+  // removed, which has balanced approach.
+  static constexpr double kDepthControlMedium[10] = {5, 5,  185, 5,  505,
+                                                     6, 35, 45,  45, 14};
+
+  // OPTIMIZED:
+  // Provide a depthmap with a medium/high number of
+  // outliers removed. Derived from an optimization function.
+  static constexpr double kDepthControlOptimized[10] = {5, 5,  175, 24, 430,
+                                                        6, 48, 47,  24, 12};
+  // HIGH:
+  // Provide a depthmap with a higher number of outliers
+  // removed, which has minimal false positives.
+  static constexpr double kDepthControlHigh[10] = {5, 5,  235, 27, 420,
+                                                   8, 80, 70,  90, 12};
+
+  // Default: OPTIMIZED
+  const double* depth_control_values = kDepthControlHigh;
 
   static RealSenseConfiguration getFromRosParams(
       const ros::NodeHandle& private_nh);

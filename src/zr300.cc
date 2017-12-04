@@ -10,6 +10,22 @@
 
 namespace maplab_realsense {
 
+constexpr rs::option RealSenseConfiguration::kDepthControlOptions[10];
+constexpr double RealSenseConfiguration::kDepthControlDefault[10];
+constexpr double RealSenseConfiguration::kDepthControlOff[10];
+constexpr double RealSenseConfiguration::kDepthControlLow[10];
+constexpr double RealSenseConfiguration::kDepthControlMedium[10];
+constexpr double RealSenseConfiguration::kDepthControlOptimized[10];
+constexpr double RealSenseConfiguration::kDepthControlHigh[10];
+
+const std::string ZR300::kFisheyeTopic = "fisheye";
+const std::string ZR300::kColorTopic = "color";
+const std::string ZR300::kImuTopic = "imu";
+const std::string ZR300::kInfraredTopic = "ir_1";
+const std::string ZR300::kInfrared2Topic = "ir_2";
+const std::string ZR300::kDepthTopic = "depth";
+const std::string ZR300::kPointCloudTopic = "pointcloud";
+
 RealSenseConfiguration RealSenseConfiguration::getFromRosParams(
     const ros::NodeHandle& private_nh) {
   RealSenseConfiguration config;
@@ -109,14 +125,6 @@ RealSenseConfiguration RealSenseConfiguration::getFromRosParams(
 
   return config;
 }
-
-const std::string ZR300::kFisheyeTopic = "fisheye";
-const std::string ZR300::kColorTopic = "color";
-const std::string ZR300::kImuTopic = "imu";
-const std::string ZR300::kInfraredTopic = "ir_1";
-const std::string ZR300::kInfrared2Topic = "ir_2";
-const std::string ZR300::kDepthTopic = "depth";
-const std::string ZR300::kPointCloudTopic = "pointcloud";
 
 ZR300::ZR300(
     ros::NodeHandle nh, ros::NodeHandle private_nh, const std::string& frameId)
@@ -244,15 +252,22 @@ void ZR300::configureStaticOptions() {
   // inside the sensor. Keep it turned on.
   zr300_device_->set_option(rs::option::fisheye_strobe, 1);
 
+  // Configure fisheye.
   zr300_device_->set_option(rs::option::fisheye_gain, config_.fisheye_gain);
   zr300_device_->set_option(
       rs::option::fisheye_exposure, config_.fisheye_exposure_ms);
+
+  // Configure color.
   zr300_device_->set_option(
       rs::option::fisheye_color_auto_exposure,
       config_.fisheye_enable_auto_exposure);
   zr300_device_->set_option(rs::option::fisheye_color_auto_exposure_mode, 2);
   // Flicker rate of ambient light.
   zr300_device_->set_option(rs::option::fisheye_color_auto_exposure_rate, 50);
+
+  // Configure depth.
+  zr300_device_->set_options(
+      config_.kDepthControlOptions, 10u, config_.depth_control_values);
 }
 
 void ZR300::enableSensorStreams() {
@@ -542,4 +557,5 @@ void ZR300::motionCallback(const rs::motion_data& entry) {
                  << static_cast<int>(entry.timestamp_data.source_id);
   }
 }
+
 }  // namespace maplab_realsense
