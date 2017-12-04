@@ -18,7 +18,7 @@ int main(int argc, char** argv)
 
   maplab_realsense::ZR300 cam(nh, pnh);
 
-  bool success = cam.start();
+  const bool success = cam.start();
   if (!success) {
     LOG(ERROR) << "Starting the camera failed.";
     return EXIT_FAILURE;

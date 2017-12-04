@@ -11,25 +11,28 @@ namespace maplab_realsense {
 
 class FrameTimestampSynchronizer {
  public:
-  void registerTimestamp(int frame_idx, double timestamp) {
+  void registerTimestamp(const int frame_idx, const double timestamp) {
     std::lock_guard<std::mutex> lock(map_mutex_);
-    const bool emplace_result = index_to_timestamp_map_.emplace(frame_idx, timestamp).second;
+    const bool emplace_result =
+        index_to_timestamp_map_.emplace(frame_idx, timestamp).second;
     CHECK(emplace_result) << "Frame timestamp emplace failed, a duplicate?";
   }
 
-  double getTimestampForFrame(int frame_idx) {
+  double getTimestampForFrame(const int frame_idx) {
     std::lock_guard<std::mutex> lock(map_mutex_);
 
     typedef std::unordered_map<int, double>::const_iterator MapIterator;
     MapIterator it = index_to_timestamp_map_.find(frame_idx);
-    CHECK(it != index_to_timestamp_map_.end()) << "No timestamp for frame idx "
-        << frame_idx << ". Consider buffering the images.";
+    CHECK(it != index_to_timestamp_map_.end())
+        << "No timestamp for frame idx " << frame_idx
+        << ". Consider buffering the images.";
     const double timestamp = it->second;
 
-    // Remove the item so that the map size is not growing too much.
+    // Remove all older items to prevent the map from growing.
+    // index_to_timestamp_map_.erase(index_to_timestamp_map_.begin(), it);
     index_to_timestamp_map_.erase(it);
 
-    return it->second;
+    return timestamp;
   }
 
  private:
@@ -45,7 +48,9 @@ class ImuSynchronizer {
     Eigen::Vector3d acc;
   };
 
-  void registerGyroMeasurement(double timestamp, const Eigen::Vector3d& data, std::vector<ImuData>* synced_imu) {
+  void registerGyroMeasurement(
+      const double timestamp, const Eigen::Vector3d& data,
+      std::vector<ImuData>* synced_imu) {
     CHECK_NOTNULL(synced_imu)->clear();
 
     std::lock_guard<std::mutex> lock(data_mutex_);
@@ -55,7 +60,8 @@ class ImuSynchronizer {
 
     // Process all accelerometer measurements that happened in the meantime.
     for (const ImuMeasurement& acc_meas : acc_measurements_since_last_gyro_) {
-      if (acc_meas.first < last_gyro_measurement_.first || acc_meas.first > timestamp) {
+      if (acc_meas.first < last_gyro_measurement_.first ||
+          acc_meas.first > timestamp) {
         // Timestamp out of range, continue.
         continue;
       }
@@ -68,7 +74,8 @@ class ImuSynchronizer {
       imu_data.acc = acc_meas.second;
 
       // Interpolate the gyro.
-      imu_data.gyro = last_gyro_measurement_.second * (1 - delta_t_interp) + data * delta_t_interp;
+      imu_data.gyro = last_gyro_measurement_.second * (1 - delta_t_interp) +
+                      data * delta_t_interp;
       synced_imu->push_back(imu_data);
     }
     acc_measurements_since_last_gyro_.clear();
@@ -77,7 +84,8 @@ class ImuSynchronizer {
     last_gyro_measurement_.second = data;
   }
 
-  void registerAccelerometerMeasurement(double timestamp, const Eigen::Vector3d& data) {
+  void registerAccelerometerMeasurement(
+      const double timestamp, const Eigen::Vector3d& data) {
     std::lock_guard<std::mutex> lock(data_mutex_);
     CHECK_GT(timestamp, last_acc_timestamp_);
 
