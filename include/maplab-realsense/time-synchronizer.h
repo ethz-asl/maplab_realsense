@@ -1,8 +1,8 @@
 #ifndef MAPLAB_REALSENSE_TIME_SYNCHRONIZER_H_
 #define MAPLAB_REALSENSE_TIME_SYNCHRONIZER_H_
 
+#include <map>
 #include <mutex>
-#include <unordered_map>
 
 #include <Eigen/Core>
 #include <glog/logging.h>
@@ -18,25 +18,30 @@ class FrameTimestampSynchronizer {
     CHECK(emplace_result) << "Frame timestamp emplace failed, a duplicate?";
   }
 
-  double getTimestampForFrame(const int frame_idx) {
+  bool getTimestampForFrame(const int frame_idx, double* timestamp_s) {
+    CHECK_NOTNULL(timestamp_s);
+
     std::lock_guard<std::mutex> lock(map_mutex_);
 
-    typedef std::unordered_map<int, double>::const_iterator MapIterator;
+    typedef std::map<int, double>::const_iterator MapIterator;
     MapIterator it = index_to_timestamp_map_.find(frame_idx);
-    CHECK(it != index_to_timestamp_map_.end())
-        << "No timestamp for frame idx " << frame_idx
-        << ". Consider buffering the images.";
-    const double timestamp = it->second;
+    if (it == index_to_timestamp_map_.end()) {
+      LOG(WARNING) << "No timestamp event received for frame idx " << frame_idx
+                   << ".";
+      return false;
+    }
+
+    *timestamp_s = it->second;
 
     // Remove all older items to prevent the map from growing.
-    // index_to_timestamp_map_.erase(index_to_timestamp_map_.begin(), it);
-    index_to_timestamp_map_.erase(it);
+    index_to_timestamp_map_.erase(index_to_timestamp_map_.begin(), it);
+    // index_to_timestamp_map_.erase(it);
 
-    return timestamp;
+    return true;
   }
 
  private:
-  std::unordered_map<int, double> index_to_timestamp_map_;
+  std::map<int, double> index_to_timestamp_map_;
   std::mutex map_mutex_;
 };
 
