@@ -90,32 +90,6 @@ ZR300Config ZR300Config::getFromRosParams(const ros::NodeHandle& private_nh) {
           "infrared/subsample_factor", config.infrared_subsample_factor,
           config.infrared_subsample_factor);
     }
-
-    if (config.pointcloud_enabled) {
-      private_nh.param(
-          "pointcloud/min_h", config.pointcloud_hsv_min_h,
-          config.pointcloud_hsv_min_h);
-      private_nh.param(
-          "pointcloud/min_s", config.pointcloud_hsv_min_s,
-          config.pointcloud_hsv_min_s);
-      private_nh.param(
-          "pointcloud/min_v", config.pointcloud_hsv_min_v,
-          config.pointcloud_hsv_min_v);
-
-      private_nh.param(
-          "pointcloud/max_h", config.pointcloud_hsv_max_h,
-          config.pointcloud_hsv_max_h);
-      private_nh.param(
-          "pointcloud/max_s", config.pointcloud_hsv_max_s,
-          config.pointcloud_hsv_max_s);
-      private_nh.param(
-          "pointcloud/max_v", config.pointcloud_hsv_max_v,
-          config.pointcloud_hsv_max_v);
-      private_nh.param(
-          "pointcloud/color_filter_enabled",
-          config.pointcloud_color_filter_enabled,
-          config.pointcloud_color_filter_enabled);
-    }
   }
 
   private_nh.param("color/enabled", config.color_enabled, config.color_enabled);

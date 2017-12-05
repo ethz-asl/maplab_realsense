@@ -57,13 +57,6 @@ struct ZR300Config {
 
   // Pointcloud config.
   bool pointcloud_enabled = true;
-  bool pointcloud_color_filter_enabled = false;
-  int pointcloud_hsv_min_h = 0;
-  int pointcloud_hsv_min_s = 0;
-  int pointcloud_hsv_min_v = 0;
-  int pointcloud_hsv_max_h = 255;
-  int pointcloud_hsv_max_s = 255;
-  int pointcloud_hsv_max_v = 255;
 
   // Depth control config.
   static constexpr rs::option kDepthControlOptions[10] = {
@@ -110,7 +103,7 @@ struct ZR300Config {
   static constexpr double kDepthControlHigh[10] = {5, 5,  235, 27, 420,
                                                    8, 80, 70,  90, 12};
 
-  const double* depth_control_values = kDepthControlOff;
+  const double* depth_control_values = kDepthControlDefault;
 
   static ZR300Config getFromRosParams(const ros::NodeHandle& private_nh);
 };

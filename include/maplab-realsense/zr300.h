@@ -10,8 +10,10 @@
 #include <librealsense/rs.hpp>
 #include <librealsense/rsutil.h>
 #include <opencv2/highgui/highgui.hpp>
+#include <pcl_conversions/pcl_conversions.h>
 #include <ros/ros.h>
 #include <sensor_msgs/CameraInfo.h>
+#include <sensor_msgs/PointCloud2.h>
 #include <tf2_ros/static_transform_broadcaster.h>
 
 #include "maplab-realsense/time-synchronizer.h"
@@ -29,6 +31,10 @@ class ZR300 {
   void stop();
 
  private:
+  struct rgb_color {
+    uint8_t r, g, b;
+  };
+
   void motionCallback(const rs::motion_data& entry);
   void frameCallback(const rs::frame& frame);
 
@@ -38,6 +44,7 @@ class ZR300 {
   void registerCallbacks();
   void retrieveCameraCalibrations();
   void publishStaticTransforms();
+  void publishPointCloudIfDataAvailable();
 
   void improveDepth(cv::Mat* depth_image);
 
@@ -47,6 +54,10 @@ class ZR300 {
   geometry_msgs::TransformStamped convertExtrinsicsToTf(
       const rs::extrinsics& T_to_from, const ros::Time& stamp,
       const std::string& parent, const std::string& child);
+  void depthToPointcloud(
+      const cv::Mat& rgb_color_image, const cv::Mat& depth_image,
+      pcl::PointCloud<pcl::PointXYZRGB>* pointcloud);
+  void invertExtrinsics(const rs::extrinsics& T_A_B_in, rs::extrinsics* T_B_A);
 
   ros::NodeHandle nh_;
   ros::NodeHandle private_nh_;
@@ -66,11 +77,14 @@ class ZR300 {
   rs::extrinsics T_infrared_depth_;
   sensor_msgs::CameraInfo depth_camera_info_;
   rs::extrinsics T_infrared_infrared_;
+  rs::intrinsics intrinsics_depth_;
   sensor_msgs::CameraInfo infrared_camera_info_;
   rs::extrinsics T_infrared_infrared_2_;
   sensor_msgs::CameraInfo infrared_2_camera_info_;
   rs::extrinsics T_infrared_color_;
+  rs::extrinsics T_color_infrared_;
   sensor_msgs::CameraInfo color_camera_info_;
+  rs::intrinsics intrinsics_color_;
 
   tf2_ros::StaticTransformBroadcaster extrinsics_broadcaster_;
 
@@ -91,6 +105,9 @@ class ZR300 {
 
   size_t latest_depth_frame_number_ = 0u;
   cv::Mat latest_depth_map_;
+  size_t latest_color_frame_number_ = 0u;
+  cv::Mat latest_color_image_;
+  size_t latest_point_cloud_frame_number_ = 0u;
 
   std::unique_ptr<cuckoo_time_translator::UnwrappedDeviceTimeTranslator>
       device_time_translator_;

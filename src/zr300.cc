@@ -111,7 +111,7 @@ void ZR300::registerCallbacks() {
         rs::stream::fisheye,
         std::bind(&ZR300::frameCallback, this, std::placeholders::_1));
   }
-  if (config_.color_enabled) {
+  if (config_.color_enabled || config_.pointcloud_enabled) {
     zr300_device_->set_frame_callback(
         rs::stream::color,
         std::bind(&ZR300::frameCallback, this, std::placeholders::_1));
@@ -125,18 +125,10 @@ void ZR300::registerCallbacks() {
         std::bind(&ZR300::frameCallback, this, std::placeholders::_1));
   }
 
-  if (config_.depth_enabled) {
+  if (config_.depth_enabled || config_.pointcloud_enabled) {
     zr300_device_->set_frame_callback(
         rs::stream::depth,
         std::bind(&ZR300::frameCallback, this, std::placeholders::_1));
-  }
-
-  if (config_.pointcloud_enabled) {
-    // TODO(mfehr): fix this, rs::stream::points is not a "native" stream,
-    // probably needs a different callback registration.
-    // zr300_device_->set_frame_callback(
-    //     rs::stream::points,
-    //     std::bind(&ZR300::frameCallback, this, std::placeholders::_1));
   }
 }
 
@@ -244,11 +236,10 @@ void ZR300::retrieveCameraCalibrations() {
   }
   if (config_.depth_enabled || config_.pointcloud_enabled) {
     getExtrinsics(rs::stream::depth, zr300_device_, &T_infrared_depth_);
-    rs::intrinsics intrinsics_depth;
-    getIntrinsics(rs::stream::depth, zr300_device_, &intrinsics_depth);
+    getIntrinsics(rs::stream::depth, zr300_device_, &intrinsics_depth_);
 
     convertCalibrationToCameraInfoMsg(
-        intrinsics_depth, T_infrared_depth_, &depth_camera_info_);
+        intrinsics_depth_, T_infrared_depth_, &depth_camera_info_);
   }
   if (config_.infrared_enabled) {
     getExtrinsics(
@@ -269,11 +260,12 @@ void ZR300::retrieveCameraCalibrations() {
 
   if (config_.color_enabled || config_.pointcloud_enabled) {
     getExtrinsics(rs::stream::color, zr300_device_, &T_infrared_color_);
-    rs::intrinsics intrinsics_color;
-    getIntrinsics(rs::stream::color, zr300_device_, &intrinsics_color);
+    getIntrinsics(rs::stream::color, zr300_device_, &intrinsics_color_);
+
+    invertExtrinsics(T_infrared_color_, &T_color_infrared_);
 
     convertCalibrationToCameraInfoMsg(
-        intrinsics_color, T_infrared_color_, &color_camera_info_);
+        intrinsics_color_, T_infrared_color_, &color_camera_info_);
   }
 
   try {
@@ -387,26 +379,6 @@ void ZR300::convertCalibrationToCameraInfoMsg(
   camera_info->P[6] = intrinsics.ppy;
   camera_info->P[10] = 1.0;
 
-  auto invertExtrinsics = [](
-      const rs::extrinsics& T_A_B_in, rs::extrinsics* T_B_A) {
-    CHECK_NOTNULL(T_B_A);
-
-    const rs::extrinsics T_A_B = T_A_B_in;
-    for (int row_idx = 0; row_idx < 3; ++row_idx) {
-      for (int col_idx = 0; col_idx < 3; ++col_idx) {
-        T_B_A->rotation[row_idx * 3 + col_idx] =
-            T_A_B.rotation[col_idx * 3 + row_idx];
-      }
-    }
-
-    const float* R = T_B_A->rotation;
-    const float* t = T_A_B.translation;
-
-    T_B_A->translation[0] = -(R[0] * t[0] + R[3] * t[1] + R[6] * t[2]);
-    T_B_A->translation[1] = -(R[1] * t[0] + R[4] * t[1] + R[7] * t[2]);
-    T_B_A->translation[2] = -(R[2] * t[0] + R[5] * t[1] + R[8] * t[2]);
-  };
-
   rs::extrinsics T_x_ir;
   invertExtrinsics(T_ir_x, &T_x_ir);
   camera_info->P[3] = T_x_ir.translation[0];
@@ -422,6 +394,54 @@ void ZR300::convertCalibrationToCameraInfoMsg(
   // camera_info->R[6] = 0.0;
   // camera_info->R[7] = 0.0;
   // camera_info->R[8] = 1.0;
+}
+
+void ZR300::depthToPointcloud(
+    const cv::Mat& rgb_color_image, const cv::Mat& depth_image,
+    pcl::PointCloud<pcl::PointXYZRGB>* pointcloud) {
+  CHECK_NOTNULL(pointcloud)->clear();
+
+  for (size_t y_pixels = 0; y_pixels < depth_image.rows; ++y_pixels) {
+    for (size_t x_pixels = 0; x_pixels < depth_image.cols; ++x_pixels) {
+      rs::float2 depth_coord;
+      depth_coord.x = x_pixels;
+      depth_coord.y = y_pixels;
+
+      const size_t depth_idx = x_pixels + depth_image.cols * y_pixels;
+
+      const float z = reinterpret_cast<uint16_t*>(depth_image.data)[depth_idx] *
+                      zr300_device_->get_depth_scale();
+
+      if (z > 0.0) {
+        const rs::float3 point = intrinsics_depth_.deproject(depth_coord, z);
+
+        rgb_color rgb_image_element;
+        pcl::PointXYZRGB point_out;
+
+        rs::float2 image_coord = intrinsics_color_.project(
+            T_color_infrared_.transform(T_infrared_depth_.transform(point)));
+        image_coord.x = std::round(image_coord.x);
+        image_coord.y = std::round(image_coord.y);
+        if ((image_coord.x < rgb_color_image.cols) && (image_coord.x >= 0) &&
+            (image_coord.y < rgb_color_image.rows) && (image_coord.y >= 0)) {
+          const size_t color_image_idx =
+              image_coord.x + rgb_color_image.cols * image_coord.y;
+
+          rgb_image_element = reinterpret_cast<rgb_color*>(
+              rgb_color_image.data)[color_image_idx];
+
+          point_out.x = point.x;
+          point_out.y = point.y;
+          point_out.z = point.z;
+          point_out.r = rgb_image_element.r;
+          point_out.g = rgb_image_element.g;
+          point_out.b = rgb_image_element.b;
+
+          pointcloud->push_back(point_out);
+        }
+      }
+    }
+  }
 }
 
 void ZR300::improveDepth(cv::Mat* depth_image) {
@@ -529,6 +549,15 @@ void ZR300::frameCallback(const rs::frame& frame) {
         return;
       }
 
+      // Retrieve and buffer color image.
+      CHECK_GT(frame.get_frame_number(), latest_color_frame_number_);
+      latest_color_frame_number_ = frame.get_frame_number();
+      latest_color_image_ =
+          cv::Mat(frame.get_height(), frame.get_width(), CV_8UC3);
+      memcpy(
+          latest_color_image_.data, frame.get_data(),
+          latest_color_image_.total() * latest_color_image_.elemSize());
+
       // Check if timestamp is strictly monotonically increasing.
       CHECK_GT(sensor_timestamp_s, last_color_frame_timestamp_s_);
       last_color_frame_timestamp_s_ = sensor_timestamp_s;
@@ -558,6 +587,9 @@ void ZR300::frameCallback(const rs::frame& frame) {
       // Publish image.
       color_publisher_.publish(msg, camera_info_msg);
 
+      if (config_.pointcloud_enabled) {
+        publishPointCloudIfDataAvailable();
+      }
       break;
     }
     case rs::stream::infrared2:
@@ -663,12 +695,49 @@ void ZR300::frameCallback(const rs::frame& frame) {
       // Publish image.
       depth_publisher_.publish(msg, camera_info_msg);
 
+      if (config_.pointcloud_enabled) {
+        publishPointCloudIfDataAvailable();
+      }
       break;
     }
 
     default:
       LOG(FATAL) << "Unknown frame type: " << static_cast<int>(stream_type);
   }
+}
+
+void ZR300::publishPointCloudIfDataAvailable() {
+  // Check if we have depth and color data.
+  if (latest_depth_map_.total() == 0 || latest_color_image_.total() == 0) {
+    return;
+  }
+
+  if (latest_depth_frame_number_ != latest_color_frame_number_) {
+    LOG(WARNING) << "Not publishing point cloud, frame number mismatch!";
+    return;
+  }
+
+  if (std::abs(last_color_frame_timestamp_s_ - last_depth_frame_timestamp_s_) >
+      1e-6) {
+    LOG(WARNING) << "Not publishing point cloud, time stamp mismatch!";
+    return;
+  }
+
+  if (latest_point_cloud_frame_number_ >= latest_depth_frame_number_) {
+    LOG(WARNING) << "Not re-publishing same frame number for point cloud!";
+    return;
+  }
+  latest_point_cloud_frame_number_ = latest_depth_frame_number_;
+
+  pcl::PointCloud<pcl::PointXYZRGB> pointcloud;
+  depthToPointcloud(latest_color_image_, latest_depth_map_, &pointcloud);
+
+  sensor_msgs::PointCloud2 points_msg;
+  pcl::toROSMsg(pointcloud, points_msg);
+  points_msg.header.frame_id = config_.kDepthTopic;
+  points_msg.header.stamp = device_time_translator_->translate(
+      last_depth_frame_timestamp_s_ * kMillisecondsToNanoseconds);
+  pointcloud_publisher_.publish(points_msg);
 }
 
 void ZR300::motionCallback(const rs::motion_data& entry) {
@@ -741,5 +810,25 @@ void ZR300::motionCallback(const rs::motion_data& entry) {
                  << static_cast<int>(entry.timestamp_data.source_id);
   }
 }
+
+void ZR300::invertExtrinsics(
+    const rs::extrinsics& T_A_B_in, rs::extrinsics* T_B_A) {
+  CHECK_NOTNULL(T_B_A);
+
+  const rs::extrinsics T_A_B = T_A_B_in;
+  for (int row_idx = 0; row_idx < 3; ++row_idx) {
+    for (int col_idx = 0; col_idx < 3; ++col_idx) {
+      T_B_A->rotation[row_idx * 3 + col_idx] =
+          T_A_B.rotation[col_idx * 3 + row_idx];
+    }
+  }
+
+  const float* R = T_B_A->rotation;
+  const float* t = T_A_B.translation;
+
+  T_B_A->translation[0] = -(R[0] * t[0] + R[3] * t[1] + R[6] * t[2]);
+  T_B_A->translation[1] = -(R[1] * t[0] + R[4] * t[1] + R[7] * t[2]);
+  T_B_A->translation[2] = -(R[2] * t[0] + R[5] * t[1] + R[8] * t[2]);
+};
 
 }  // namespace maplab_realsense
