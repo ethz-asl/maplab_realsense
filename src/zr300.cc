@@ -384,16 +384,6 @@ void ZR300::convertCalibrationToCameraInfoMsg(
   camera_info->P[3] = T_x_ir.translation[0];
   camera_info->P[7] = T_x_ir.translation[1];
   camera_info->P[11] = T_x_ir.translation[2];
-
-  // TODO(mfehr): figure out why the fuck they set R to identity in the other
-  // ros driver. camera_info->R[0] = 1.0; camera_info->R[1] = 0.0;
-  // camera_info->R[2] = 0.0;
-  // camera_info->R[3] = 0.0;
-  // camera_info->R[4] = 1.0;
-  // camera_info->R[5] = 0.0;
-  // camera_info->R[6] = 0.0;
-  // camera_info->R[7] = 0.0;
-  // camera_info->R[8] = 1.0;
 }
 
 void ZR300::depthToPointcloud(
@@ -712,19 +702,19 @@ void ZR300::publishPointCloudIfDataAvailable() {
     return;
   }
 
+  // Not publishing point cloud, frame number mismatch!
   if (latest_depth_frame_number_ != latest_color_frame_number_) {
-    LOG(WARNING) << "Not publishing point cloud, frame number mismatch!";
     return;
   }
 
+  // Not publishing point cloud, time stamp mismatch!
   if (std::abs(last_color_frame_timestamp_s_ - last_depth_frame_timestamp_s_) >
       1e-6) {
-    LOG(WARNING) << "Not publishing point cloud, time stamp mismatch!";
     return;
   }
 
+  // Not re-publishing same frame number for point cloud!
   if (latest_point_cloud_frame_number_ >= latest_depth_frame_number_) {
-    LOG(WARNING) << "Not re-publishing same frame number for point cloud!";
     return;
   }
   latest_point_cloud_frame_number_ = latest_depth_frame_number_;
