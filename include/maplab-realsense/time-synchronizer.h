@@ -35,7 +35,6 @@ class FrameTimestampSynchronizer {
 
     // Remove all older items to prevent the map from growing.
     index_to_timestamp_map_.erase(index_to_timestamp_map_.begin(), it);
-    // index_to_timestamp_map_.erase(it);
 
     return true;
   }
