@@ -1,5 +1,6 @@
 #include "maplab-realsense/zr300-config.h"
 
+#include <glog/logging.h>
 #include <string>
 
 #include <ros/ros.h>
@@ -71,6 +72,9 @@ ZR300Config ZR300Config::getFromRosParams(const ros::NodeHandle& private_nh) {
     private_nh.param(
         "depth/median_filter_enabled", config.depth_median_filter_enabled,
         config.depth_median_filter_enabled);
+    private_nh.param(
+        "depth/median_filter_size", config.depth_median_filter_size,
+        config.depth_median_filter_size);
     private_nh.param(
         "depth/min_max_filter_enabled", config.depth_min_max_filter_enabled,
         config.depth_min_max_filter_enabled);

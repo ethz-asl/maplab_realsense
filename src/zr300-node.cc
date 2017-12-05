@@ -12,7 +12,7 @@ int main(int argc, char** argv) {
   FLAGS_alsologtostderr = true;
   FLAGS_colorlogtostderr = true;
 
-  ros::NodeHandle nh;
+  ros::NodeHandle nh("~");
   ros::NodeHandle pnh("~");
 
   maplab_realsense::ZR300 cam(nh, pnh);

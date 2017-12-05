@@ -4,11 +4,15 @@
 #include <string>
 
 #include <cuckoo_time_translator/DeviceTimeTranslator.h>
+#include <geometry_msgs/TransformStamped.h>
+#include <image_transport/camera_publisher.h>
 #include <image_transport/publisher.h>
 #include <librealsense/rs.hpp>
 #include <librealsense/rsutil.h>
 #include <opencv2/highgui/highgui.hpp>
 #include <ros/ros.h>
+#include <sensor_msgs/CameraInfo.h>
+#include <tf2_ros/static_transform_broadcaster.h>
 
 #include "maplab-realsense/time-synchronizer.h"
 #include "maplab-realsense/zr300-config.h"
@@ -32,19 +36,43 @@ class ZR300 {
   void enableSensorStreams();
   void configureStaticOptions();
   void registerCallbacks();
+  void retrieveCameraCalibrations();
+  void publishStaticTransforms();
+
+  void improveDepth(cv::Mat* depth_image);
+
+  void convertCalibrationToCameraInfoMsg(
+      const rs::intrinsics& intrinsics, const rs::extrinsics& extrinsics,
+      sensor_msgs::CameraInfo* camera_info);
+  geometry_msgs::TransformStamped convertExtrinsicsToTf(
+      const rs::extrinsics& T_to_from, const ros::Time& stamp,
+      const std::string& parent, const std::string& child);
 
   ros::NodeHandle nh_;
   ros::NodeHandle private_nh_;
 
   ZR300Config config_;
 
-  image_transport::Publisher fisheye_publisher_;
-  image_transport::Publisher color_publisher_;
-  image_transport::Publisher infrared_publisher_;
-  image_transport::Publisher infrared_2_publisher_;
-  image_transport::Publisher depth_publisher_;
+  image_transport::CameraPublisher fisheye_publisher_;
+  image_transport::CameraPublisher color_publisher_;
+  image_transport::CameraPublisher infrared_publisher_;
+  image_transport::CameraPublisher infrared_2_publisher_;
+  image_transport::CameraPublisher depth_publisher_;
   ros::Publisher imu_publisher_;
   ros::Publisher pointcloud_publisher_;
+
+  rs::extrinsics T_infrared_fisheye_;
+  sensor_msgs::CameraInfo fisheye_camera_info_;
+  rs::extrinsics T_infrared_depth_;
+  sensor_msgs::CameraInfo depth_camera_info_;
+  rs::extrinsics T_infrared_infrared_;
+  sensor_msgs::CameraInfo infrared_camera_info_;
+  rs::extrinsics T_infrared_infrared_2_;
+  sensor_msgs::CameraInfo infrared_2_camera_info_;
+  rs::extrinsics T_infrared_color_;
+  sensor_msgs::CameraInfo color_camera_info_;
+
+  tf2_ros::StaticTransformBroadcaster extrinsics_broadcaster_;
 
   rs::context zr300_context_;
   rs::device* zr300_device_;

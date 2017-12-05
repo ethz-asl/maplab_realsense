@@ -46,16 +46,17 @@ struct ZR300Config {
   int depth_fps = 30;
   int depth_subsample_factor = 1;
   bool depth_median_filter_enabled = false;
+  int depth_median_filter_size = 5;
   bool depth_min_max_filter_enabled = false;
   int depth_min_max_filter_size = 3;
   float depth_min_max_filter_threshold = 0.3f;
 
   // IR config.
-  bool infrared_enabled = false;
+  bool infrared_enabled = true;
   int infrared_subsample_factor = 1;
 
   // Pointcloud config.
-  bool pointcloud_enabled = false;
+  bool pointcloud_enabled = true;
   bool pointcloud_color_filter_enabled = false;
   int pointcloud_hsv_min_h = 0;
   int pointcloud_hsv_min_s = 0;
@@ -109,8 +110,7 @@ struct ZR300Config {
   static constexpr double kDepthControlHigh[10] = {5, 5,  235, 27, 420,
                                                    8, 80, 70,  90, 12};
 
-  // Default: OPTIMIZED
-  const double* depth_control_values = kDepthControlHigh;
+  const double* depth_control_values = kDepthControlOff;
 
   static ZR300Config getFromRosParams(const ros::NodeHandle& private_nh);
 };
