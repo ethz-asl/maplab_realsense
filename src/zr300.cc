@@ -353,6 +353,8 @@ void ZR300::convertCalibrationToCameraInfoMsg(
     case rs::distortion::inverse_brown_conrady:
       camera_info->distortion_model = sensor_msgs::distortion_models::PLUMB_BOB;
       break;
+    // TODO(mfehr): this distortion model should correspond to the FOV/Fisheye
+    // model, not sure what to set in the camera info.
     case rs::distortion::distortion_ftheta:
       camera_info->distortion_model = sensor_msgs::distortion_models::PLUMB_BOB;
       break;
