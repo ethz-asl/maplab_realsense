@@ -19,7 +19,7 @@ namespace maplab_realsense {
 
 ZR300::ZR300(
     ros::NodeHandle nh, ros::NodeHandle private_nh, const std::string& frameId)
-    : nh_(nh), private_nh_(private_nh), gyro_measurement_index_(0u) {
+    : nh_(nh), private_nh_(private_nh), angular_velocity_index_(0u) {
   config_ = ZR300Config::getFromRosParams(private_nh);
 
   initializePublishers(&nh);
@@ -323,6 +323,7 @@ void ZR300::publishStaticTransforms() {
 // Converts the realsense intrinsics and extrinsics to a camera info message.
 // Expects the intrinsics of the camera and the extrinsics as T_ir_x, where x is
 // the camera frame of the camera we want to publish the info from.
+// The base frame for all transformations is the infrared camera.
 void ZR300::convertCalibrationToCameraInfoMsg(
     const rs::intrinsics& intrinsics, const rs::extrinsics& T_ir_x,
     sensor_msgs::CameraInfo* camera_info) {
@@ -748,8 +749,8 @@ void ZR300::motionCallback(const rs::motion_data& entry) {
               entry.timestamp_data.timestamp * kMillisecondsToNanoseconds),
           time_now);
 
-      ++gyro_measurement_index_;
-      if (gyro_measurement_index_ <
+      ++angular_velocity_index_;
+      if (angular_velocity_index_ <
           static_cast<size_t>(config_.imu_skip_first_n_gyro_measurements)) {
         return;
       }
@@ -774,13 +775,13 @@ void ZR300::motionCallback(const rs::motion_data& entry) {
         msg->header.seq = entry.timestamp_data.frame_number;
         msg->header.frame_id = "imu";
 
-        msg->angular_velocity.x = item.gyro[0];
-        msg->angular_velocity.y = item.gyro[1];
-        msg->angular_velocity.z = item.gyro[2];
+        msg->angular_velocity.x = item.angular_velocity[0];
+        msg->angular_velocity.y = item.angular_velocity[1];
+        msg->angular_velocity.z = item.angular_velocity[2];
 
-        msg->linear_acceleration.x = item.acc[0];
-        msg->linear_acceleration.y = item.acc[1];
-        msg->linear_acceleration.z = item.acc[2];
+        msg->linear_acceleration.x = item.acceleration[0];
+        msg->linear_acceleration.y = item.acceleration[1];
+        msg->linear_acceleration.z = item.acceleration[2];
 
         msg->orientation_covariance[0] = -1.0;  // No orientation estimate.
 

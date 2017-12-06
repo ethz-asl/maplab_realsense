@@ -48,44 +48,45 @@ class ImuSynchronizer {
  public:
   struct ImuData {
     double timestamp;
-    Eigen::Vector3d gyro;
-    Eigen::Vector3d acc;
+    Eigen::Vector3d angular_velocity;
+    Eigen::Vector3d acceleration;
   };
 
   void registerGyroMeasurement(
-      const double timestamp, const Eigen::Vector3d& data,
+      const double timestamp, const Eigen::Vector3d& angular_velocity,
       std::vector<ImuData>* synced_imu) {
     CHECK_NOTNULL(synced_imu)->clear();
 
     std::lock_guard<std::mutex> lock(data_mutex_);
-    CHECK_GT(timestamp, last_gyro_measurement_.first);
+    CHECK_GT(timestamp, last_angular_velocity_.first);
 
-    const double delta_gyro = timestamp - last_gyro_measurement_.first;
+    const double delta_gyro = timestamp - last_angular_velocity_.first;
 
     // Process all accelerometer measurements that happened in the meantime.
     for (const ImuMeasurement& acc_meas : acc_measurements_since_last_gyro_) {
-      if (acc_meas.first < last_gyro_measurement_.first ||
+      if (acc_meas.first < last_angular_velocity_.first ||
           acc_meas.first > timestamp) {
         // Timestamp out of range, continue.
         continue;
       }
 
       const double delta_t_interp =
-          (acc_meas.first - last_gyro_measurement_.first) / delta_gyro;
+          (acc_meas.first - last_angular_velocity_.first) / delta_gyro;
 
       ImuData imu_data;
       imu_data.timestamp = acc_meas.first;
-      imu_data.acc = acc_meas.second;
+      imu_data.acceleration = acc_meas.second;
 
       // Interpolate the gyro.
-      imu_data.gyro = last_gyro_measurement_.second * (1 - delta_t_interp) +
-                      data * delta_t_interp;
+      imu_data.angular_velocity =
+          last_angular_velocity_.second * (1 - delta_t_interp) +
+          angular_velocity * delta_t_interp;
       synced_imu->push_back(imu_data);
     }
     acc_measurements_since_last_gyro_.clear();
 
-    last_gyro_measurement_.first = timestamp;
-    last_gyro_measurement_.second = data;
+    last_angular_velocity_.first = timestamp;
+    last_angular_velocity_.second = angular_velocity;
   }
 
   void registerAccelerometerMeasurement(
@@ -104,7 +105,7 @@ class ImuSynchronizer {
 
   typedef std::pair<double, Eigen::Vector3d> ImuMeasurement;
   std::vector<ImuMeasurement> acc_measurements_since_last_gyro_;
-  ImuMeasurement last_gyro_measurement_;
+  ImuMeasurement last_angular_velocity_;
 
   std::mutex data_mutex_;
 };

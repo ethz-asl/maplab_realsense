@@ -10,8 +10,8 @@
     <param name="fisheye/height" value="480"/>
     <param name="fisheye/fps" value="30"/>
     <param name="fisheye/enable_auto_exposure" value="true"/>
-    <param name="fisheye/exposure_ms" value="25"/>
-    <param name="fisheye/gain" value="9"/>
+    <param name="fisheye/exposure_ms" value="25.0"/>
+    <param name="fisheye/gain" value="9.0"/>
     <param name="fisheye/subsample_factor" value="1"/>
 
     <param name="color/enabled" value="true"/>
@@ -26,6 +26,7 @@
     <param name="depth/fps" value="30"/>
     <param name="depth/subsample_factor" value="1"/>
     <param name="depth/median_filter_enabled" value="false"/>
+    <!-- Only 3 or 5 are supported by opencv for this image type. -->
     <param name="depth/median_filter_size" value="5"/>
     <param name="depth/min_max_filter_enabled" value="false"/>
     <param name="depth/min_max_filter_size" value="3"/>

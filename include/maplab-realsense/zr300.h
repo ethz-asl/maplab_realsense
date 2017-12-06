@@ -112,7 +112,7 @@ class ZR300 {
   std::unique_ptr<cuckoo_time_translator::UnwrappedDeviceTimeTranslator>
       device_time_translator_;
 
-  size_t gyro_measurement_index_;
+  size_t angular_velocity_index_;
 };
 
 }  // namespace maplab_realsense
