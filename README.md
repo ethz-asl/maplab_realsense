@@ -8,5 +8,5 @@ First:
 
 Then:
 ```
- roslaunch maplab_realsense realsense_ros.launch
+ roslaunch maplab_realsense maplab_realsense.launch
  ```
