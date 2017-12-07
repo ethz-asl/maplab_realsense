@@ -40,7 +40,7 @@ bool ZR300::start() {
 
   if (zr300_context_.get_device_count() == 0) {
     LOG(ERROR) << "No RealSense devices found.";
-    return EXIT_FAILURE;
+    return false;
   }
 
   zr300_device_ = zr300_context_.get_device(0);
