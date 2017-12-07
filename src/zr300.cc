@@ -74,25 +74,26 @@ void ZR300::stop() {
 void ZR300::initializePublishers(ros::NodeHandle* nh) {
   CHECK_NOTNULL(nh);
 
-  auto advertiseCamera =
-      [nh](const std::string& name) -> image_transport::CameraPublisher {
+  auto advertiseCamera = [nh](
+      const std::string& name,
+      const std::string& suffix) -> image_transport::CameraPublisher {
     ros::NodeHandle _nh(*nh, name);
     image_transport::ImageTransport it(_nh);
-    return it.advertiseCamera(name, 1);
+    return it.advertiseCamera(suffix, 1);
   };
 
   if (config_.fisheye_enabled) {
-    fisheye_publisher_ = advertiseCamera(config_.kFisheyeTopic);
+    fisheye_publisher_ = advertiseCamera(config_.kFisheyeTopic, config_.kImageSuffix);
   }
   if (config_.color_enabled) {
-    color_publisher_ = advertiseCamera(config_.kColorTopic);
+    color_publisher_ = advertiseCamera(config_.kColorTopic, config_.kImageSuffix);
   }
   if (config_.infrared_enabled) {
-    infrared_publisher_ = advertiseCamera(config_.kInfraredTopic);
-    infrared_2_publisher_ = advertiseCamera(config_.kInfrared2Topic);
+    infrared_publisher_ = advertiseCamera(config_.kInfraredTopic, config_.kImageSuffix);
+    infrared_2_publisher_ = advertiseCamera(config_.kInfrared2Topic, config_.kImageSuffix);
   }
   if (config_.depth_enabled) {
-    depth_publisher_ = advertiseCamera(config_.kDepthTopic);
+    depth_publisher_ = advertiseCamera(config_.kDepthTopic, config_.kImageSuffix);
   }
 
   if (config_.imu_enabled) {
