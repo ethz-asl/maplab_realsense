@@ -17,6 +17,8 @@ struct ZR300Config {
   static const std::string kDepthTopic;
   static const std::string kPointCloudTopic;
 
+  static const std::string kImageSuffix;
+
   // Imu config.
   bool imu_enabled = true;
   int imu_skip_first_n_gyro_measurements = 100;
