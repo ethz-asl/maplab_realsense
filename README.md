@@ -49,8 +49,6 @@ There is an example launch file with a list of all available ros parameters:
 
 ## Stand-alone Installation
 
-**Warning:** These instructions have not been tested!
-
 ### Install ROS
 Skip this part if you have ROS installed.
 ```bash 
