@@ -6,9 +6,8 @@ This repository contains a ros wrapper for the Intel RealSense ZR300 driver, wit
 
 This installation instruction assumes you already have maplab installed based on this [page](https://github.com/ethz-asl/maplab/wiki/Installation-Ubuntu).
 
-### Additional dependencies:
+### Install Realsense driver
 
-Install realsense ros driver package:
 * Ubuntu LTS 16.04
   ```
   sudo apt install ros-kinetic-librealsense
@@ -18,9 +17,7 @@ Install realsense ros driver package:
   sudo apt-get install ros-indigo-librealsense
   ```
   
-### Adding `maplab_realsense` to your maplab workspace
-
-Clone the additional repositories in your maplab workspace:
+### Add `maplab_realsense` and dependencies to your maplab workspace
 ```
 cd $CATKIN_WS/src
 git clone https://github.com/ethz-asl/maplab_realsense.git
