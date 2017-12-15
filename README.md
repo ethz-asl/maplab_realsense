@@ -2,6 +2,12 @@
 
 This repository contains a ros wrapper for the Intel RealSense ZR300 driver, with a focus on its application for visual-inertial mapping.
 
+Contents:
+ * [Installation for maplab users](#installation-for-maplab-users)
+ * [Build maplab_realsense](#build-maplab_realsense)
+ * [Run maplab_realsense](#run-maplab_realsense)
+ * [Stand-alone Installation](#stand-alone-installation)
+
 ## Installation for maplab users
 
 This installation instruction assumes you already have maplab installed based on this [page](https://github.com/ethz-asl/maplab/wiki/Installation-Ubuntu).
@@ -17,19 +23,19 @@ This installation instruction assumes you already have maplab installed based on
   sudo apt-get install ros-indigo-librealsense
   ```
   
-### Add `maplab_realsense` and dependencies to your maplab workspace
+### Add maplab_realsense and dependencies to your maplab workspace
 ```
 cd $CATKIN_WS/src
 git clone https://github.com/ethz-asl/maplab_realsense.git
 git clone  https://github.com/ethz-asl/cuckoo_time_translator.git
 ```
 
-### Build `maplab_realsense`
+## Build maplab_realsense
 ```bash
 catkin build maplab_realsense
 ```
 
-## Running `maplab_realsense`
+## Run maplab_realsense
 
 Source the catkin workspace:
 ```bash
@@ -41,7 +47,9 @@ There is an example launch file with a list of all available ros parameters:
  roslaunch maplab_realsense maplab_realsense.launch
 ```
 
-## Standalone Installation (untested)
+## Stand-alone Installation
+
+**Warning:** These instructions have not been tested!
 
 ### Install ROS
 Skip this part if you have ROS installed.
@@ -95,9 +103,4 @@ wstool init             # If you are using a pre-existing workspace and
                         # have used wstool before, this won't be necessary
 wstool merge maplab_realsense/dependencies.rosinstall
 wstool update -j4
-```
-
-### Build `maplab_realsense`
-```bash
-catkin build maplab_realsense
 ```
