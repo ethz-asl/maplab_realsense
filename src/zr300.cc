@@ -205,6 +205,31 @@ void ZR300::retrieveCameraCalibrations() {
     }
   };
 
+auto getMotionExtrinsics = [](rs::stream stream, rs::device *zr300_device,
+                              rs::extrinsics *extrinsics) {
+  CHECK_NOTNULL(zr300_device);
+  CHECK_NOTNULL(extrinsics);
+  try {
+    *extrinsics = zr300_device->get_motion_extrinsics_from(stream);
+    LOG(INFO) << "Retrieved imu to camera extrinsics for " << stream
+              << "\n translation: " << extrinsics->translation[0] << ", "
+              << extrinsics->translation[3] << ", "
+              << extrinsics->translation[2]
+              << "\n rotation: " << extrinsics->rotation[0] << ", "
+              << extrinsics->rotation[1] << ", " << extrinsics->rotation[2]
+              << ", " << extrinsics->rotation[3] << ", "
+              << extrinsics->rotation[4] << ", " << extrinsics->rotation[5]
+              << ", " << extrinsics->rotation[6] << ", "
+              << extrinsics->rotation[7] << ", " << extrinsics->rotation[8];
+  } catch (rs::error &e) {
+    LOG(FATAL)
+        << "Failed to retrieve imu to camera extrinsics for stream type: "
+        << stream << "\nerror: " << e.what();
+  }
+};
+
+
+
   auto getIntrinsics = [](
       rs::stream stream, rs::device* zr300_device, rs::intrinsics* intrinsics) {
     CHECK_NOTNULL(zr300_device);
@@ -226,6 +251,8 @@ void ZR300::retrieveCameraCalibrations() {
                  << stream << "\nerror: " << e.what();
     }
   };
+
+  getMotionExtrinsics(rs::stream::fisheye, zr300_device_, &T_imu_fisheye_);
 
   if (config_.fisheye_enabled) {
     getExtrinsics(rs::stream::fisheye, zr300_device_, &T_infrared_fisheye_);
@@ -306,6 +333,10 @@ geometry_msgs::TransformStamped ZR300::convertExtrinsicsToTf(
 void ZR300::publishStaticTransforms() {
   std::vector<geometry_msgs::TransformStamped> extrinsics_transforms;
   ros::Time stamp = ros::Time::now();
+
+  extrinsics_transforms.push_back(convertExtrinsicsToTf(
+      T_imu_fisheye_, stamp, config_.kImuTopic, config_.kFisheyeTopic));
+
   const std::string parent = config_.kInfraredTopic;
   extrinsics_transforms.push_back(convertExtrinsicsToTf(
       T_infrared_color_, stamp, parent, config_.kColorTopic));

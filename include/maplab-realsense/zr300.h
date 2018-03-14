@@ -72,6 +72,7 @@ class ZR300 {
   ros::Publisher imu_publisher_;
   ros::Publisher pointcloud_publisher_;
 
+  rs::extrinsics T_imu_fisheye_;
   rs::extrinsics T_infrared_fisheye_;
   sensor_msgs::CameraInfo fisheye_camera_info_;
   rs::extrinsics T_infrared_depth_;
