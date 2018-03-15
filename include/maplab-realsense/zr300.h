@@ -69,6 +69,12 @@ class ZR300 {
   image_transport::CameraPublisher infrared_publisher_;
   image_transport::CameraPublisher infrared_2_publisher_;
   image_transport::CameraPublisher depth_publisher_;
+
+  // Used to publish color and depth camera info if depth and color is disabled
+  // but pointclouds are enabled.
+  ros::Publisher color_camera_info_publisher_;
+  ros::Publisher depth_camera_info_publisher_;
+
   ros::Publisher imu_publisher_;
   ros::Publisher pointcloud_publisher_;
 

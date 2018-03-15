@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="ISO-8859-15"?>
+
+<!-- Have a look at the documentation to see which resolution
+and fps settings are supported:
+https://click.intel.com/media/ZR300-Product-Datasheet-Public-002.pdf -->
+
 <launch>
   <node pkg="maplab_realsense" type="zr300_node" name="zr300_node">
 
@@ -14,13 +19,13 @@
     <param name="fisheye/gain" value="9.0"/>
     <param name="fisheye/subsample_factor" value="1"/>
 
-    <param name="color/enabled" value="true"/>
+    <param name="color/enabled" value="false"/>
     <param name="color/width" value="640"/>
     <param name="color/height" value="480"/>
     <param name="color/fps" value="30"/>
     <param name="color/subsample_factor" value="1"/>
 
-    <param name="depth/enabled" value="true"/>
+    <param name="depth/enabled" value="false"/>
     <param name="depth/width" value="640"/>
     <param name="depth/height" value="480"/>
     <param name="depth/fps" value="30"/>
@@ -32,7 +37,7 @@
     <param name="depth/min_max_filter_size" value="3"/>
     <param name="depth/min_max_filter_threshold" value="0.1"/>
 
-    <param name="infrared/enabled" value="true"/>
+    <param name="infrared/enabled" value="false"/>
     <param name="infrared/subsample_factor" value="1"/>
 
     <param name="pointcloud/enabled" value="true"/>
