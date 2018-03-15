@@ -361,10 +361,10 @@ void ZR300::publishStaticTransforms() {
   extrinsics_transforms.push_back(convertExtrinsicsToTf(
       T_fisheye_infrared_, stamp, parent, config_.kInfraredTopic));
 
-// NOTE: Should always be identity, since the fisheye frame is the frame of
-// reference.
-// extrinsics_transforms.push_back(convertExtrinsicsToTf(
-//     T_fisheye_fisheye_, stamp, parent, config_.kFisheyeTopic));
+  // NOTE: Should always be identity, since the fisheye frame is the frame of
+  // reference.
+  // extrinsics_transforms.push_back(convertExtrinsicsToTf(
+  //     T_fisheye_fisheye_, stamp, parent, config_.kFisheyeTopic));
 
   extrinsics_broadcaster_.sendTransform(extrinsics_transforms);
 }
