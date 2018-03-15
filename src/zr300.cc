@@ -74,26 +74,32 @@ void ZR300::stop() {
 void ZR300::initializePublishers(ros::NodeHandle* nh) {
   CHECK_NOTNULL(nh);
 
-  auto advertiseCamera = [nh](
-      const std::string& name,
-      const std::string& suffix) -> image_transport::CameraPublisher {
+  auto advertiseCamera =
+      [nh](
+          const std::string& name,
+          const std::string& suffix) -> image_transport::CameraPublisher {
     ros::NodeHandle _nh(*nh, name);
     image_transport::ImageTransport it(_nh);
     return it.advertiseCamera(suffix, 1);
   };
 
   if (config_.fisheye_enabled) {
-    fisheye_publisher_ = advertiseCamera(config_.kFisheyeTopic, config_.kImageSuffix);
+    fisheye_publisher_ =
+        advertiseCamera(config_.kFisheyeTopic, config_.kImageSuffix);
   }
   if (config_.color_enabled) {
-    color_publisher_ = advertiseCamera(config_.kColorTopic, config_.kImageSuffix);
+    color_publisher_ =
+        advertiseCamera(config_.kColorTopic, config_.kImageSuffix);
   }
   if (config_.infrared_enabled) {
-    infrared_publisher_ = advertiseCamera(config_.kInfraredTopic, config_.kImageSuffix);
-    infrared_2_publisher_ = advertiseCamera(config_.kInfrared2Topic, config_.kImageSuffix);
+    infrared_publisher_ =
+        advertiseCamera(config_.kInfraredTopic, config_.kImageSuffix);
+    infrared_2_publisher_ =
+        advertiseCamera(config_.kInfrared2Topic, config_.kImageSuffix);
   }
   if (config_.depth_enabled) {
-    depth_publisher_ = advertiseCamera(config_.kDepthTopic, config_.kImageSuffix);
+    depth_publisher_ =
+        advertiseCamera(config_.kDepthTopic, config_.kImageSuffix);
   }
 
   if (config_.imu_enabled) {
@@ -183,8 +189,8 @@ void ZR300::enableSensorStreams() {
 }
 
 void ZR300::retrieveCameraCalibrations() {
-  auto getExtrinsics = [](
-      rs::stream stream, rs::device* zr300_device, rs::extrinsics* extrinsics) {
+  auto getExtrinsics = [](rs::stream stream, rs::device* zr300_device,
+                          rs::extrinsics* extrinsics) {
     CHECK_NOTNULL(zr300_device);
     CHECK_NOTNULL(extrinsics);
     try {
@@ -205,6 +211,7 @@ void ZR300::retrieveCameraCalibrations() {
     }
   };
 
+<<<<<<< Updated upstream
 auto getMotionExtrinsics = [](rs::stream stream, rs::device *zr300_device,
                               rs::extrinsics *extrinsics) {
   CHECK_NOTNULL(zr300_device);
@@ -232,6 +239,10 @@ auto getMotionExtrinsics = [](rs::stream stream, rs::device *zr300_device,
 
   auto getIntrinsics = [](
       rs::stream stream, rs::device* zr300_device, rs::intrinsics* intrinsics) {
+=======
+  auto getIntrinsics = [](rs::stream stream, rs::device* zr300_device,
+                          rs::intrinsics* intrinsics) {
+>>>>>>> Stashed changes
     CHECK_NOTNULL(zr300_device);
     CHECK_NOTNULL(intrinsics);
     try {
@@ -299,6 +310,20 @@ auto getMotionExtrinsics = [](rs::stream stream, rs::device *zr300_device,
   try {
     rs::motion_intrinsics imu_intrinsics =
         zr300_device_->get_motion_intrinsics();
+
+    LOG(INFO) << "IMU INTRINSICS: ";
+    LOG(INFO) << "acc noise var: " << imu_intrinsics.acc.noise_variances[0]
+              << ", " << imu_intrinsics.acc.noise_variances[1] << ", "
+              << imu_intrinsics.acc.noise_variances[2];
+    LOG(INFO) << "acc bias var: " << imu_intrinsics.acc.bias_variances[0]
+              << ", " << imu_intrinsics.acc.bias_variances[1] << ", "
+              << imu_intrinsics.acc.bias_variances[2];
+    LOG(INFO) << "gyro noise var: " << imu_intrinsics.gyro.noise_variances[0]
+              << ", " << imu_intrinsics.gyro.noise_variances[1] << ", "
+              << imu_intrinsics.gyro.noise_variances[2];
+    LOG(INFO) << "gyro bias var: " << imu_intrinsics.gyro.bias_variances[0]
+              << ", " << imu_intrinsics.gyro.bias_variances[1] << ", "
+              << imu_intrinsics.gyro.bias_variances[2];
   } catch (rs::error& e) {
     LOG(FATAL) << "Unable to get IMU intrinsics: " << e.what();
   }
@@ -346,8 +371,11 @@ void ZR300::publishStaticTransforms() {
       T_infrared_fisheye_, stamp, parent, config_.kFisheyeTopic));
   extrinsics_transforms.push_back(convertExtrinsicsToTf(
       T_infrared_infrared_2_, stamp, parent, config_.kInfrared2Topic));
-  extrinsics_transforms.push_back(convertExtrinsicsToTf(
-      T_infrared_infrared_, stamp, parent, config_.kInfraredTopic));
+
+  // NOTE: this is obviously identity, since IR is the root frame, therefore we
+  // commented this out, but keep if for now, in case we change the root frame.
+  // extrinsics_transforms.push_back(convertExtrinsicsToTf(
+  //     T_infrared_infrared_, stamp, parent, config_.kInfraredTopic));
 
   extrinsics_broadcaster_.sendTransform(extrinsics_transforms);
 }
