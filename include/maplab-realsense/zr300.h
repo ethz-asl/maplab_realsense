@@ -73,16 +73,16 @@ class ZR300 {
   ros::Publisher pointcloud_publisher_;
 
   rs::extrinsics T_imu_fisheye_;
-  rs::extrinsics T_infrared_fisheye_;
+  rs::extrinsics T_fisheye_fisheye_;
   sensor_msgs::CameraInfo fisheye_camera_info_;
-  rs::extrinsics T_infrared_depth_;
+  rs::extrinsics T_fisheye_depth_;
   sensor_msgs::CameraInfo depth_camera_info_;
-  rs::extrinsics T_infrared_infrared_;
+  rs::extrinsics T_fisheye_infrared_;
   rs::intrinsics intrinsics_depth_;
   sensor_msgs::CameraInfo infrared_camera_info_;
-  rs::extrinsics T_infrared_infrared_2_;
+  rs::extrinsics T_fisheye_infrared_2_;
   sensor_msgs::CameraInfo infrared_2_camera_info_;
-  rs::extrinsics T_infrared_color_;
+  rs::extrinsics T_fisheye_color_;
   rs::extrinsics T_color_infrared_;
   sensor_msgs::CameraInfo color_camera_info_;
   rs::intrinsics intrinsics_color_;

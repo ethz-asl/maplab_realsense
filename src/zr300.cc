@@ -17,8 +17,8 @@
 
 namespace maplab_realsense {
 
-ZR300::ZR300(
-    ros::NodeHandle nh, ros::NodeHandle private_nh, const std::string& frameId)
+ZR300::ZR300(ros::NodeHandle nh, ros::NodeHandle private_nh,
+             const std::string &frameId)
     : nh_(nh), private_nh_(private_nh), angular_velocity_index_(0u) {
   config_ = ZR300Config::getFromRosParams(private_nh);
 
@@ -71,13 +71,12 @@ void ZR300::stop() {
   zr300_device_->disable_motion_tracking();
 }
 
-void ZR300::initializePublishers(ros::NodeHandle* nh) {
+void ZR300::initializePublishers(ros::NodeHandle *nh) {
   CHECK_NOTNULL(nh);
 
-  auto advertiseCamera =
-      [nh](
-          const std::string& name,
-          const std::string& suffix) -> image_transport::CameraPublisher {
+  auto advertiseCamera = [nh](
+      const std::string &name,
+      const std::string &suffix) -> image_transport::CameraPublisher {
     ros::NodeHandle _nh(*nh, name);
     image_transport::ImageTransport it(_nh);
     return it.advertiseCamera(suffix, 1);
@@ -146,55 +145,54 @@ void ZR300::configureStaticOptions() {
 
   // Configure fisheye.
   zr300_device_->set_option(rs::option::fisheye_gain, config_.fisheye_gain);
-  zr300_device_->set_option(
-      rs::option::fisheye_exposure, config_.fisheye_exposure_ms);
+  zr300_device_->set_option(rs::option::fisheye_exposure,
+                            config_.fisheye_exposure_ms);
 
   // Configure color.
-  zr300_device_->set_option(
-      rs::option::fisheye_color_auto_exposure,
-      config_.fisheye_enable_auto_exposure);
+  zr300_device_->set_option(rs::option::fisheye_color_auto_exposure,
+                            config_.fisheye_enable_auto_exposure);
   zr300_device_->set_option(rs::option::fisheye_color_auto_exposure_mode, 2);
   // Flicker rate of ambient light.
   zr300_device_->set_option(rs::option::fisheye_color_auto_exposure_rate, 50);
 
   // Configure depth.
-  zr300_device_->set_options(
-      config_.kDepthControlOptions, 10u, config_.depth_control_values);
+  zr300_device_->set_options(config_.kDepthControlOptions, 10u,
+                             config_.depth_control_values);
 }
 
 void ZR300::enableSensorStreams() {
   if (config_.fisheye_enabled) {
-    zr300_device_->enable_stream(
-        rs::stream::fisheye, config_.fisheye_width, config_.fisheye_height,
-        rs::format::raw8, config_.fisheye_fps);
+    zr300_device_->enable_stream(rs::stream::fisheye, config_.fisheye_width,
+                                 config_.fisheye_height, rs::format::raw8,
+                                 config_.fisheye_fps);
   }
   if (config_.depth_enabled || config_.pointcloud_enabled) {
-    zr300_device_->enable_stream(
-        rs::stream::depth, config_.depth_width, config_.depth_height,
-        rs::format::z16, config_.depth_fps);
+    zr300_device_->enable_stream(rs::stream::depth, config_.depth_width,
+                                 config_.depth_height, rs::format::z16,
+                                 config_.depth_fps);
   }
   if (config_.infrared_enabled) {
-    zr300_device_->enable_stream(
-        rs::stream::infrared, config_.depth_width, config_.depth_height,
-        rs::format::y8, config_.depth_fps);
-    zr300_device_->enable_stream(
-        rs::stream::infrared2, config_.depth_width, config_.depth_height,
-        rs::format::y8, config_.depth_fps);
+    zr300_device_->enable_stream(rs::stream::infrared, config_.depth_width,
+                                 config_.depth_height, rs::format::y8,
+                                 config_.depth_fps);
+    zr300_device_->enable_stream(rs::stream::infrared2, config_.depth_width,
+                                 config_.depth_height, rs::format::y8,
+                                 config_.depth_fps);
   }
   if (config_.color_enabled || config_.pointcloud_enabled) {
-    zr300_device_->enable_stream(
-        rs::stream::color, config_.color_width, config_.color_height,
-        rs::format::rgb8, config_.color_fps);
+    zr300_device_->enable_stream(rs::stream::color, config_.color_width,
+                                 config_.color_height, rs::format::rgb8,
+                                 config_.color_fps);
   }
 }
 
 void ZR300::retrieveCameraCalibrations() {
-  auto getExtrinsics = [](rs::stream stream, rs::device* zr300_device,
-                          rs::extrinsics* extrinsics) {
+  auto getExtrinsics = [](rs::stream stream, rs::device *zr300_device,
+                          rs::extrinsics *extrinsics) {
     CHECK_NOTNULL(zr300_device);
     CHECK_NOTNULL(extrinsics);
     try {
-      *extrinsics = zr300_device->get_extrinsics(stream, rs::stream::infrared);
+      *extrinsics = zr300_device->get_extrinsics(stream, rs::stream::fisheye);
       LOG(INFO) << "Retrieved extrinsics for " << stream
                 << "\n translation: " << extrinsics->translation[0] << ", "
                 << extrinsics->translation[3] << ", "
@@ -205,44 +203,36 @@ void ZR300::retrieveCameraCalibrations() {
                 << extrinsics->rotation[4] << ", " << extrinsics->rotation[5]
                 << ", " << extrinsics->rotation[6] << ", "
                 << extrinsics->rotation[7] << ", " << extrinsics->rotation[8];
-    } catch (rs::error& e) {
+    } catch (rs::error &e) {
       LOG(FATAL) << "Failed to retrieve camera extrinsics for stream type: "
                  << stream << "\nerror: " << e.what();
     }
   };
+  auto getMotionExtrinsics = [](rs::stream stream, rs::device *zr300_device,
+                                rs::extrinsics *extrinsics) {
+    CHECK_NOTNULL(zr300_device);
+    CHECK_NOTNULL(extrinsics);
+    try {
+      *extrinsics = zr300_device->get_motion_extrinsics_from(stream);
+      LOG(INFO) << "Retrieved imu to camera extrinsics for " << stream
+                << "\n translation: " << extrinsics->translation[0] << ", "
+                << extrinsics->translation[3] << ", "
+                << extrinsics->translation[2]
+                << "\n rotation: " << extrinsics->rotation[0] << ", "
+                << extrinsics->rotation[1] << ", " << extrinsics->rotation[2]
+                << ", " << extrinsics->rotation[3] << ", "
+                << extrinsics->rotation[4] << ", " << extrinsics->rotation[5]
+                << ", " << extrinsics->rotation[6] << ", "
+                << extrinsics->rotation[7] << ", " << extrinsics->rotation[8];
+    } catch (rs::error &e) {
+      LOG(FATAL)
+          << "Failed to retrieve imu to camera extrinsics for stream type: "
+          << stream << "\nerror: " << e.what();
+    }
+  };
 
-<<<<<<< Updated upstream
-auto getMotionExtrinsics = [](rs::stream stream, rs::device *zr300_device,
-                              rs::extrinsics *extrinsics) {
-  CHECK_NOTNULL(zr300_device);
-  CHECK_NOTNULL(extrinsics);
-  try {
-    *extrinsics = zr300_device->get_motion_extrinsics_from(stream);
-    LOG(INFO) << "Retrieved imu to camera extrinsics for " << stream
-              << "\n translation: " << extrinsics->translation[0] << ", "
-              << extrinsics->translation[3] << ", "
-              << extrinsics->translation[2]
-              << "\n rotation: " << extrinsics->rotation[0] << ", "
-              << extrinsics->rotation[1] << ", " << extrinsics->rotation[2]
-              << ", " << extrinsics->rotation[3] << ", "
-              << extrinsics->rotation[4] << ", " << extrinsics->rotation[5]
-              << ", " << extrinsics->rotation[6] << ", "
-              << extrinsics->rotation[7] << ", " << extrinsics->rotation[8];
-  } catch (rs::error &e) {
-    LOG(FATAL)
-        << "Failed to retrieve imu to camera extrinsics for stream type: "
-        << stream << "\nerror: " << e.what();
-  }
-};
-
-
-
-  auto getIntrinsics = [](
-      rs::stream stream, rs::device* zr300_device, rs::intrinsics* intrinsics) {
-=======
-  auto getIntrinsics = [](rs::stream stream, rs::device* zr300_device,
-                          rs::intrinsics* intrinsics) {
->>>>>>> Stashed changes
+  auto getIntrinsics = [](rs::stream stream, rs::device *zr300_device,
+                          rs::intrinsics *intrinsics) {
     CHECK_NOTNULL(zr300_device);
     CHECK_NOTNULL(intrinsics);
     try {
@@ -257,7 +247,7 @@ auto getMotionExtrinsics = [](rs::stream stream, rs::device *zr300_device,
                 << intrinsics->coeffs[1] << ", " << intrinsics->coeffs[2]
                 << ", " << intrinsics->coeffs[3] << ", "
                 << intrinsics->coeffs[4];
-    } catch (rs::error& e) {
+    } catch (rs::error &e) {
       LOG(FATAL) << "Failed to retrieve camera intrinsics for stream type: "
                  << stream << "\nerror: " << e.what();
     }
@@ -266,45 +256,43 @@ auto getMotionExtrinsics = [](rs::stream stream, rs::device *zr300_device,
   getMotionExtrinsics(rs::stream::fisheye, zr300_device_, &T_imu_fisheye_);
 
   if (config_.fisheye_enabled) {
-    getExtrinsics(rs::stream::fisheye, zr300_device_, &T_infrared_fisheye_);
+    getExtrinsics(rs::stream::fisheye, zr300_device_, &T_fisheye_fisheye_);
     rs::intrinsics intrinsics_fisheye;
     getIntrinsics(rs::stream::fisheye, zr300_device_, &intrinsics_fisheye);
 
-    convertCalibrationToCameraInfoMsg(
-        intrinsics_fisheye, T_infrared_fisheye_, &fisheye_camera_info_);
+    convertCalibrationToCameraInfoMsg(intrinsics_fisheye, T_fisheye_fisheye_,
+                                      &fisheye_camera_info_);
   }
   if (config_.depth_enabled || config_.pointcloud_enabled) {
-    getExtrinsics(rs::stream::depth, zr300_device_, &T_infrared_depth_);
+    getExtrinsics(rs::stream::depth, zr300_device_, &T_fisheye_depth_);
     getIntrinsics(rs::stream::depth, zr300_device_, &intrinsics_depth_);
 
-    convertCalibrationToCameraInfoMsg(
-        intrinsics_depth_, T_infrared_depth_, &depth_camera_info_);
+    convertCalibrationToCameraInfoMsg(intrinsics_depth_, T_fisheye_depth_,
+                                      &depth_camera_info_);
   }
   if (config_.infrared_enabled) {
-    getExtrinsics(
-        rs::stream::infrared2, zr300_device_, &T_infrared_infrared_2_);
-    getExtrinsics(rs::stream::infrared, zr300_device_, &T_infrared_infrared_);
+    getExtrinsics(rs::stream::infrared2, zr300_device_, &T_fisheye_infrared_2_);
+    getExtrinsics(rs::stream::infrared, zr300_device_, &T_fisheye_infrared_);
 
     rs::intrinsics intrinsics_infrared;
     getIntrinsics(rs::stream::infrared, zr300_device_, &intrinsics_infrared);
     rs::intrinsics intrinsics_infrared_2;
     getIntrinsics(rs::stream::infrared2, zr300_device_, &intrinsics_infrared_2);
 
+    convertCalibrationToCameraInfoMsg(intrinsics_infrared, T_fisheye_infrared_,
+                                      &infrared_camera_info_);
     convertCalibrationToCameraInfoMsg(
-        intrinsics_infrared, T_infrared_infrared_, &infrared_camera_info_);
-    convertCalibrationToCameraInfoMsg(
-        intrinsics_infrared_2, T_infrared_infrared_2_,
-        &infrared_2_camera_info_);
+        intrinsics_infrared_2, T_fisheye_infrared_2_, &infrared_2_camera_info_);
   }
 
   if (config_.color_enabled || config_.pointcloud_enabled) {
-    getExtrinsics(rs::stream::color, zr300_device_, &T_infrared_color_);
+    getExtrinsics(rs::stream::color, zr300_device_, &T_fisheye_color_);
     getIntrinsics(rs::stream::color, zr300_device_, &intrinsics_color_);
 
-    invertExtrinsics(T_infrared_color_, &T_color_infrared_);
+    invertExtrinsics(T_fisheye_color_, &T_color_infrared_);
 
-    convertCalibrationToCameraInfoMsg(
-        intrinsics_color_, T_infrared_color_, &color_camera_info_);
+    convertCalibrationToCameraInfoMsg(intrinsics_color_, T_fisheye_color_,
+                                      &color_camera_info_);
   }
 
   try {
@@ -324,22 +312,23 @@ auto getMotionExtrinsics = [](rs::stream stream, rs::device *zr300_device,
     LOG(INFO) << "gyro bias var: " << imu_intrinsics.gyro.bias_variances[0]
               << ", " << imu_intrinsics.gyro.bias_variances[1] << ", "
               << imu_intrinsics.gyro.bias_variances[2];
-  } catch (rs::error& e) {
+  } catch (rs::error &e) {
     LOG(FATAL) << "Unable to get IMU intrinsics: " << e.what();
   }
 }
 
-geometry_msgs::TransformStamped ZR300::convertExtrinsicsToTf(
-    const rs::extrinsics& T_to_from, const ros::Time& stamp,
-    const std::string& parent, const std::string& child) {
+geometry_msgs::TransformStamped
+ZR300::convertExtrinsicsToTf(const rs::extrinsics &T_to_from,
+                             const ros::Time &stamp, const std::string &parent,
+                             const std::string &child) {
   geometry_msgs::TransformStamped tf_message;
   tf_message.header.stamp = stamp;
   tf_message.header.frame_id = parent;
   tf_message.child_frame_id = child;
 
-  const float* R = T_to_from.rotation;
-  tf2::Matrix3x3 rotation_matrix(
-      R[0], R[3], R[6], R[1], R[4], R[7], R[2], R[5], R[8]);
+  const float *R = T_to_from.rotation;
+  tf2::Matrix3x3 rotation_matrix(R[0], R[3], R[6], R[1], R[4], R[7], R[2], R[5],
+                                 R[8]);
 
   tf2::Quaternion q;
   rotation_matrix.getRotation(q);
@@ -362,20 +351,20 @@ void ZR300::publishStaticTransforms() {
   extrinsics_transforms.push_back(convertExtrinsicsToTf(
       T_imu_fisheye_, stamp, config_.kImuTopic, config_.kFisheyeTopic));
 
-  const std::string parent = config_.kInfraredTopic;
+  const std::string parent = config_.kFisheyeTopic;
   extrinsics_transforms.push_back(convertExtrinsicsToTf(
-      T_infrared_color_, stamp, parent, config_.kColorTopic));
+      T_fisheye_color_, stamp, parent, config_.kColorTopic));
   extrinsics_transforms.push_back(convertExtrinsicsToTf(
-      T_infrared_depth_, stamp, parent, config_.kDepthTopic));
+      T_fisheye_depth_, stamp, parent, config_.kDepthTopic));
   extrinsics_transforms.push_back(convertExtrinsicsToTf(
-      T_infrared_fisheye_, stamp, parent, config_.kFisheyeTopic));
+      T_fisheye_infrared_2_, stamp, parent, config_.kInfrared2Topic));
   extrinsics_transforms.push_back(convertExtrinsicsToTf(
-      T_infrared_infrared_2_, stamp, parent, config_.kInfrared2Topic));
+      T_fisheye_infrared_, stamp, parent, config_.kInfraredTopic));
 
-  // NOTE: this is obviously identity, since IR is the root frame, therefore we
-  // commented this out, but keep if for now, in case we change the root frame.
-  // extrinsics_transforms.push_back(convertExtrinsicsToTf(
-  //     T_infrared_infrared_, stamp, parent, config_.kInfraredTopic));
+// NOTE: Should always be identity, since the fisheye frame is the frame of
+// reference.
+// extrinsics_transforms.push_back(convertExtrinsicsToTf(
+//     T_fisheye_fisheye_, stamp, parent, config_.kFisheyeTopic));
 
   extrinsics_broadcaster_.sendTransform(extrinsics_transforms);
 }
@@ -385,34 +374,33 @@ void ZR300::publishStaticTransforms() {
 // the camera frame of the camera we want to publish the info from.
 // The base frame for all transformations is the infrared camera.
 void ZR300::convertCalibrationToCameraInfoMsg(
-    const rs::intrinsics& intrinsics, const rs::extrinsics& T_ir_x,
-    sensor_msgs::CameraInfo* camera_info) {
+    const rs::intrinsics &intrinsics, const rs::extrinsics &T_ir_x,
+    sensor_msgs::CameraInfo *camera_info) {
   CHECK_NOTNULL(camera_info);
 
-  static_assert(
-      sizeof(intrinsics.coeffs) == 5 * sizeof(float),
-      "The intrinsics do not have the expected size (5)!");
+  static_assert(sizeof(intrinsics.coeffs) == 5 * sizeof(float),
+                "The intrinsics do not have the expected size (5)!");
 
   // Copy intrinsics.
   camera_info->width = intrinsics.width;
   camera_info->height = intrinsics.height;
   switch (intrinsics.model()) {
-    case rs::distortion::none:
-      camera_info->distortion_model = sensor_msgs::distortion_models::PLUMB_BOB;
-      break;
-    case rs::distortion::modified_brown_conrady:
-      camera_info->distortion_model = sensor_msgs::distortion_models::PLUMB_BOB;
-      break;
-    case rs::distortion::inverse_brown_conrady:
-      camera_info->distortion_model = sensor_msgs::distortion_models::PLUMB_BOB;
-      break;
-    // TODO(mfehr): this distortion model should correspond to the FOV/Fisheye
-    // model, not sure what to set in the camera info.
-    case rs::distortion::distortion_ftheta:
-      camera_info->distortion_model = sensor_msgs::distortion_models::PLUMB_BOB;
-      break;
-    default:
-      LOG(FATAL) << "Unknown distortion model: " << intrinsics.model();
+  case rs::distortion::none:
+    camera_info->distortion_model = sensor_msgs::distortion_models::PLUMB_BOB;
+    break;
+  case rs::distortion::modified_brown_conrady:
+    camera_info->distortion_model = sensor_msgs::distortion_models::PLUMB_BOB;
+    break;
+  case rs::distortion::inverse_brown_conrady:
+    camera_info->distortion_model = sensor_msgs::distortion_models::PLUMB_BOB;
+    break;
+  // TODO(mfehr): this distortion model should correspond to the FOV/Fisheye
+  // model, not sure what to set in the camera info.
+  case rs::distortion::distortion_ftheta:
+    camera_info->distortion_model = sensor_msgs::distortion_models::PLUMB_BOB;
+    break;
+  default:
+    LOG(FATAL) << "Unknown distortion model: " << intrinsics.model();
   }
 
   for (int idx = 0; idx < 5; ++idx) {
@@ -447,9 +435,9 @@ void ZR300::convertCalibrationToCameraInfoMsg(
   camera_info->P[11] = T_x_ir.translation[2];
 }
 
-void ZR300::depthToPointcloud(
-    const cv::Mat& rgb_color_image, const cv::Mat& depth_image,
-    pcl::PointCloud<pcl::PointXYZRGB>* pointcloud) {
+void ZR300::depthToPointcloud(const cv::Mat &rgb_color_image,
+                              const cv::Mat &depth_image,
+                              pcl::PointCloud<pcl::PointXYZRGB> *pointcloud) {
   CHECK_NOTNULL(pointcloud)->clear();
 
   for (size_t y_pixels = 0; y_pixels < depth_image.rows; ++y_pixels) {
@@ -460,8 +448,9 @@ void ZR300::depthToPointcloud(
 
       const size_t depth_idx = x_pixels + depth_image.cols * y_pixels;
 
-      const float z = reinterpret_cast<uint16_t*>(depth_image.data)[depth_idx] *
-                      zr300_device_->get_depth_scale();
+      const float z =
+          reinterpret_cast<uint16_t *>(depth_image.data)[depth_idx] *
+          zr300_device_->get_depth_scale();
 
       if (z > 0.0) {
         const rs::float3 point = intrinsics_depth_.deproject(depth_coord, z);
@@ -470,7 +459,7 @@ void ZR300::depthToPointcloud(
         pcl::PointXYZRGB point_out;
 
         rs::float2 image_coord = intrinsics_color_.project(
-            T_color_infrared_.transform(T_infrared_depth_.transform(point)));
+            T_color_infrared_.transform(T_fisheye_depth_.transform(point)));
         image_coord.x = std::round(image_coord.x);
         image_coord.y = std::round(image_coord.y);
         if ((image_coord.x < rgb_color_image.cols) && (image_coord.x >= 0) &&
@@ -478,7 +467,7 @@ void ZR300::depthToPointcloud(
           const size_t color_image_idx =
               image_coord.x + rgb_color_image.cols * image_coord.y;
 
-          rgb_image_element = reinterpret_cast<rgb_color*>(
+          rgb_image_element = reinterpret_cast<rgb_color *>(
               rgb_color_image.data)[color_image_idx];
 
           point_out.x = point.x;
@@ -495,13 +484,13 @@ void ZR300::depthToPointcloud(
   }
 }
 
-void ZR300::improveDepth(cv::Mat* depth_image) {
+void ZR300::improveDepth(cv::Mat *depth_image) {
   CHECK_NOTNULL(depth_image);
 
   if (config_.depth_median_filter_enabled) {
     CHECK_LE(config_.depth_median_filter_size, 5);
-    cv::medianBlur(
-        *depth_image, *depth_image, config_.depth_median_filter_size);
+    cv::medianBlur(*depth_image, *depth_image,
+                   config_.depth_median_filter_size);
   }
 
   if (config_.depth_min_max_filter_enabled) {
@@ -509,27 +498,26 @@ void ZR300::improveDepth(cv::Mat* depth_image) {
     cv::Mat min_image(depth_image->rows, depth_image->cols, CV_16UC1);
 
     cv::Mat kernel = cv::getStructuringElement(
-        cv::MORPH_RECT, cv::Size(
-                            config_.depth_min_max_filter_size,
-                            config_.depth_min_max_filter_size));
+        cv::MORPH_RECT, cv::Size(config_.depth_min_max_filter_size,
+                                 config_.depth_min_max_filter_size));
     cv::erode(*depth_image, min_image, kernel);
     cv::dilate(*depth_image, max_image, kernel);
 
     const float depth_scale = zr300_device_->get_depth_scale();
     for (size_t i = 0u; i < depth_image->rows * depth_image->cols; ++i) {
       const float difference =
-          (reinterpret_cast<uint16_t*>(max_image.data)[i] -
-           reinterpret_cast<uint16_t*>(min_image.data)[i]) *
+          (reinterpret_cast<uint16_t *>(max_image.data)[i] -
+           reinterpret_cast<uint16_t *>(min_image.data)[i]) *
           depth_scale;
 
       if (difference > config_.depth_min_max_filter_threshold) {
-        reinterpret_cast<uint16_t*>(depth_image->data)[i] = 0u;
+        reinterpret_cast<uint16_t *>(depth_image->data)[i] = 0u;
       }
     }
   }
 }
 
-void ZR300::frameCallback(const rs::frame& frame) {
+void ZR300::frameCallback(const rs::frame &frame) {
   CHECK_GE(frame.get_frame_number(), 0u);
 
   const rs::stream stream_type = frame.get_stream_type();
@@ -556,204 +544,201 @@ void ZR300::frameCallback(const rs::frame& frame) {
   }
 
   switch (stream_type) {
-    case rs::stream::fisheye: {
-      if (fisheye_publisher_.getNumSubscribers() == 0) {
-        LOG_EVERY_N(WARNING, config_.fisheye_fps * 20)
-            << "No subscribers for the fisheye images found!";
-        return;
-      }
+  case rs::stream::fisheye: {
+    if (fisheye_publisher_.getNumSubscribers() == 0) {
+      LOG_EVERY_N(WARNING, config_.fisheye_fps * 20)
+          << "No subscribers for the fisheye images found!";
+      return;
+    }
 
+    // Check if timestamp is strictly monotonically increasing.
+    CHECK_GT(sensor_timestamp_s, last_fisheye_frame_timestamp_s_);
+    last_fisheye_frame_timestamp_s_ = sensor_timestamp_s;
+
+    // Compose image message.
+    sensor_msgs::ImagePtr msg = boost::make_shared<sensor_msgs::Image>();
+
+    CHECK(device_time_translator_->isReadyToTranslate());
+    msg->header.stamp = device_time_translator_->translate(
+        sensor_timestamp_s * kMillisecondsToNanoseconds);
+
+    msg->header.frame_id = "fisheye";
+
+    msg->height = frame.get_height();
+    msg->width = frame.get_width();
+    msg->step = msg->width;
+    msg->encoding = sensor_msgs::image_encodings::MONO8;
+    const size_t size = msg->height * msg->step;
+    msg->data.resize(size);
+    memcpy(msg->data.data(), frame.get_data(), size);
+
+    // Compose camera info msg.
+    sensor_msgs::CameraInfoPtr camera_info_msg =
+        boost::make_shared<sensor_msgs::CameraInfo>(fisheye_camera_info_);
+    camera_info_msg->header = msg->header;
+
+    // Publish image message.
+    fisheye_publisher_.publish(msg, camera_info_msg);
+    break;
+  }
+  case rs::stream::color: {
+    if (color_publisher_.getNumSubscribers() == 0) {
+      LOG_EVERY_N(WARNING, config_.color_fps * 20)
+          << "No subscribers for the color images found!";
+      return;
+    }
+
+    // Retrieve and buffer color image.
+    CHECK_GT(frame.get_frame_number(), latest_color_frame_number_);
+    latest_color_frame_number_ = frame.get_frame_number();
+    latest_color_image_ =
+        cv::Mat(frame.get_height(), frame.get_width(), CV_8UC3);
+    memcpy(latest_color_image_.data, frame.get_data(),
+           latest_color_image_.total() * latest_color_image_.elemSize());
+
+    // Check if timestamp is strictly monotonically increasing.
+    CHECK_GT(sensor_timestamp_s, last_color_frame_timestamp_s_);
+    last_color_frame_timestamp_s_ = sensor_timestamp_s;
+
+    // Compose image message.
+    sensor_msgs::ImagePtr msg = boost::make_shared<sensor_msgs::Image>();
+
+    CHECK(device_time_translator_->isReadyToTranslate());
+    msg->header.stamp = device_time_translator_->translate(
+        sensor_timestamp_s * kMillisecondsToNanoseconds);
+
+    msg->header.frame_id = "color";
+
+    msg->height = frame.get_height();
+    msg->width = frame.get_width();
+    msg->step = msg->width * 3;
+    msg->encoding = sensor_msgs::image_encodings::RGB8;
+    const size_t size = msg->height * msg->step;
+    msg->data.resize(size);
+    memcpy(msg->data.data(), frame.get_data(), size);
+
+    // Compose camera info msg.
+    sensor_msgs::CameraInfoPtr camera_info_msg =
+        boost::make_shared<sensor_msgs::CameraInfo>(color_camera_info_);
+    camera_info_msg->header = msg->header;
+
+    // Publish image.
+    color_publisher_.publish(msg, camera_info_msg);
+
+    if (config_.pointcloud_enabled) {
+      publishPointCloudIfDataAvailable();
+    }
+    break;
+  }
+  case rs::stream::infrared2:
+  // Fall through intended.
+  case rs::stream::infrared: {
+    if (infrared_2_publisher_.getNumSubscribers() == 0 &&
+        infrared_publisher_.getNumSubscribers() == 0) {
+      LOG_EVERY_N(WARNING, 300)
+          << "No subscribers for the infrared images found!";
+      return;
+    }
+
+    // Compose image message.
+    sensor_msgs::ImagePtr msg = boost::make_shared<sensor_msgs::Image>();
+
+    CHECK(device_time_translator_->isReadyToTranslate());
+    msg->header.stamp = device_time_translator_->translate(
+        sensor_timestamp_s * kMillisecondsToNanoseconds);
+
+    msg->height = frame.get_height();
+    msg->width = frame.get_width();
+    msg->step = msg->width;
+    msg->encoding = sensor_msgs::image_encodings::MONO8;
+    const size_t size = msg->height * msg->step;
+    msg->data.resize(size);
+    memcpy(msg->data.data(), frame.get_data(), size);
+
+    // Publish image.
+    if (stream_type == rs::stream::infrared) {
       // Check if timestamp is strictly monotonically increasing.
-      CHECK_GT(sensor_timestamp_s, last_fisheye_frame_timestamp_s_);
-      last_fisheye_frame_timestamp_s_ = sensor_timestamp_s;
+      CHECK_GT(sensor_timestamp_s, last_infrared_frame_timestamp_s_);
+      last_infrared_frame_timestamp_s_ = sensor_timestamp_s;
 
-      // Compose image message.
-      sensor_msgs::ImagePtr msg = boost::make_shared<sensor_msgs::Image>();
-
-      CHECK(device_time_translator_->isReadyToTranslate());
-      msg->header.stamp = device_time_translator_->translate(
-          sensor_timestamp_s * kMillisecondsToNanoseconds);
-
-      msg->header.frame_id = "fisheye";
-
-      msg->height = frame.get_height();
-      msg->width = frame.get_width();
-      msg->step = msg->width;
-      msg->encoding = sensor_msgs::image_encodings::MONO8;
-      const size_t size = msg->height * msg->step;
-      msg->data.resize(size);
-      memcpy(msg->data.data(), frame.get_data(), size);
+      msg->header.frame_id = "infrared";
 
       // Compose camera info msg.
       sensor_msgs::CameraInfoPtr camera_info_msg =
-          boost::make_shared<sensor_msgs::CameraInfo>(fisheye_camera_info_);
+          boost::make_shared<sensor_msgs::CameraInfo>(infrared_camera_info_);
       camera_info_msg->header = msg->header;
 
-      // Publish image message.
-      fisheye_publisher_.publish(msg, camera_info_msg);
-      break;
-    }
-    case rs::stream::color: {
-      if (color_publisher_.getNumSubscribers() == 0) {
-        LOG_EVERY_N(WARNING, config_.color_fps * 20)
-            << "No subscribers for the color images found!";
-        return;
-      }
-
-      // Retrieve and buffer color image.
-      CHECK_GT(frame.get_frame_number(), latest_color_frame_number_);
-      latest_color_frame_number_ = frame.get_frame_number();
-      latest_color_image_ =
-          cv::Mat(frame.get_height(), frame.get_width(), CV_8UC3);
-      memcpy(
-          latest_color_image_.data, frame.get_data(),
-          latest_color_image_.total() * latest_color_image_.elemSize());
-
+      infrared_publisher_.publish(msg, camera_info_msg);
+    } else if (stream_type == rs::stream::infrared2) {
       // Check if timestamp is strictly monotonically increasing.
-      CHECK_GT(sensor_timestamp_s, last_color_frame_timestamp_s_);
-      last_color_frame_timestamp_s_ = sensor_timestamp_s;
+      CHECK_GT(sensor_timestamp_s, last_infrared_2_frame_timestamp_s_);
+      last_infrared_2_frame_timestamp_s_ = sensor_timestamp_s;
 
-      // Compose image message.
-      sensor_msgs::ImagePtr msg = boost::make_shared<sensor_msgs::Image>();
-
-      CHECK(device_time_translator_->isReadyToTranslate());
-      msg->header.stamp = device_time_translator_->translate(
-          sensor_timestamp_s * kMillisecondsToNanoseconds);
-
-      msg->header.frame_id = "color";
-
-      msg->height = frame.get_height();
-      msg->width = frame.get_width();
-      msg->step = msg->width * 3;
-      msg->encoding = sensor_msgs::image_encodings::RGB8;
-      const size_t size = msg->height * msg->step;
-      msg->data.resize(size);
-      memcpy(msg->data.data(), frame.get_data(), size);
+      msg->header.frame_id = "infrared_2";
 
       // Compose camera info msg.
       sensor_msgs::CameraInfoPtr camera_info_msg =
-          boost::make_shared<sensor_msgs::CameraInfo>(color_camera_info_);
+          boost::make_shared<sensor_msgs::CameraInfo>(infrared_2_camera_info_);
       camera_info_msg->header = msg->header;
 
-      // Publish image.
-      color_publisher_.publish(msg, camera_info_msg);
-
-      if (config_.pointcloud_enabled) {
-        publishPointCloudIfDataAvailable();
-      }
-      break;
+      infrared_2_publisher_.publish(msg, camera_info_msg);
     }
-    case rs::stream::infrared2:
-    // Fall through intended.
-    case rs::stream::infrared: {
-      if (infrared_2_publisher_.getNumSubscribers() == 0 &&
-          infrared_publisher_.getNumSubscribers() == 0) {
-        LOG_EVERY_N(WARNING, 300)
-            << "No subscribers for the infrared images found!";
-        return;
-      }
-
-      // Compose image message.
-      sensor_msgs::ImagePtr msg = boost::make_shared<sensor_msgs::Image>();
-
-      CHECK(device_time_translator_->isReadyToTranslate());
-      msg->header.stamp = device_time_translator_->translate(
-          sensor_timestamp_s * kMillisecondsToNanoseconds);
-
-      msg->height = frame.get_height();
-      msg->width = frame.get_width();
-      msg->step = msg->width;
-      msg->encoding = sensor_msgs::image_encodings::MONO8;
-      const size_t size = msg->height * msg->step;
-      msg->data.resize(size);
-      memcpy(msg->data.data(), frame.get_data(), size);
-
-      // Publish image.
-      if (stream_type == rs::stream::infrared) {
-        // Check if timestamp is strictly monotonically increasing.
-        CHECK_GT(sensor_timestamp_s, last_infrared_frame_timestamp_s_);
-        last_infrared_frame_timestamp_s_ = sensor_timestamp_s;
-
-        msg->header.frame_id = "infrared";
-
-        // Compose camera info msg.
-        sensor_msgs::CameraInfoPtr camera_info_msg =
-            boost::make_shared<sensor_msgs::CameraInfo>(infrared_camera_info_);
-        camera_info_msg->header = msg->header;
-
-        infrared_publisher_.publish(msg, camera_info_msg);
-      } else if (stream_type == rs::stream::infrared2) {
-        // Check if timestamp is strictly monotonically increasing.
-        CHECK_GT(sensor_timestamp_s, last_infrared_2_frame_timestamp_s_);
-        last_infrared_2_frame_timestamp_s_ = sensor_timestamp_s;
-
-        msg->header.frame_id = "infrared_2";
-
-        // Compose camera info msg.
-        sensor_msgs::CameraInfoPtr camera_info_msg =
-            boost::make_shared<sensor_msgs::CameraInfo>(
-                infrared_2_camera_info_);
-        camera_info_msg->header = msg->header;
-
-        infrared_2_publisher_.publish(msg, camera_info_msg);
-      }
-      break;
-    }
-    case rs::stream::depth: {
-      if (depth_publisher_.getNumSubscribers() == 0) {
-        LOG_EVERY_N(WARNING, config_.depth_fps * 20)
-            << "No subscribers for the depth maps found!";
-        return;
-      }
-
-      // Check if timestamp is strictly monotonically increasing.
-      CHECK_GT(sensor_timestamp_s, last_depth_frame_timestamp_s_);
-      last_depth_frame_timestamp_s_ = sensor_timestamp_s;
-
-      // Retrieve and buffer depth map.
-      CHECK_GT(frame.get_frame_number(), latest_depth_frame_number_);
-      latest_depth_frame_number_ = frame.get_frame_number();
-      latest_depth_map_ =
-          cv::Mat(frame.get_height(), frame.get_width(), CV_16UC1);
-      memcpy(
-          latest_depth_map_.data, frame.get_data(),
-          latest_depth_map_.total() * latest_depth_map_.elemSize());
-
-      improveDepth(&latest_depth_map_);
-
-      // Compose image message.
-      sensor_msgs::ImagePtr msg = boost::make_shared<sensor_msgs::Image>();
-
-      CHECK(device_time_translator_->isReadyToTranslate());
-      msg->header.stamp = device_time_translator_->translate(
-          sensor_timestamp_s * kMillisecondsToNanoseconds);
-
-      msg->header.frame_id = "depth";
-
-      msg->height = frame.get_height();
-      msg->width = frame.get_width();
-      msg->step = msg->width * 2;
-      msg->encoding = sensor_msgs::image_encodings::TYPE_16UC1;
-      const size_t size = msg->height * msg->step;
-      msg->data.resize(size);
-      memcpy(msg->data.data(), frame.get_data(), size);
-
-      // Compose camera info msg.
-      sensor_msgs::CameraInfoPtr camera_info_msg =
-          boost::make_shared<sensor_msgs::CameraInfo>(depth_camera_info_);
-      camera_info_msg->header = msg->header;
-
-      // Publish image.
-      depth_publisher_.publish(msg, camera_info_msg);
-
-      if (config_.pointcloud_enabled) {
-        publishPointCloudIfDataAvailable();
-      }
-      break;
+    break;
+  }
+  case rs::stream::depth: {
+    if (depth_publisher_.getNumSubscribers() == 0) {
+      LOG_EVERY_N(WARNING, config_.depth_fps * 20)
+          << "No subscribers for the depth maps found!";
+      return;
     }
 
-    default:
-      LOG(FATAL) << "Unknown frame type: " << static_cast<int>(stream_type);
+    // Check if timestamp is strictly monotonically increasing.
+    CHECK_GT(sensor_timestamp_s, last_depth_frame_timestamp_s_);
+    last_depth_frame_timestamp_s_ = sensor_timestamp_s;
+
+    // Retrieve and buffer depth map.
+    CHECK_GT(frame.get_frame_number(), latest_depth_frame_number_);
+    latest_depth_frame_number_ = frame.get_frame_number();
+    latest_depth_map_ =
+        cv::Mat(frame.get_height(), frame.get_width(), CV_16UC1);
+    memcpy(latest_depth_map_.data, frame.get_data(),
+           latest_depth_map_.total() * latest_depth_map_.elemSize());
+
+    improveDepth(&latest_depth_map_);
+
+    // Compose image message.
+    sensor_msgs::ImagePtr msg = boost::make_shared<sensor_msgs::Image>();
+
+    CHECK(device_time_translator_->isReadyToTranslate());
+    msg->header.stamp = device_time_translator_->translate(
+        sensor_timestamp_s * kMillisecondsToNanoseconds);
+
+    msg->header.frame_id = "depth";
+
+    msg->height = frame.get_height();
+    msg->width = frame.get_width();
+    msg->step = msg->width * 2;
+    msg->encoding = sensor_msgs::image_encodings::TYPE_16UC1;
+    const size_t size = msg->height * msg->step;
+    msg->data.resize(size);
+    memcpy(msg->data.data(), frame.get_data(), size);
+
+    // Compose camera info msg.
+    sensor_msgs::CameraInfoPtr camera_info_msg =
+        boost::make_shared<sensor_msgs::CameraInfo>(depth_camera_info_);
+    camera_info_msg->header = msg->header;
+
+    // Publish image.
+    depth_publisher_.publish(msg, camera_info_msg);
+
+    if (config_.pointcloud_enabled) {
+      publishPointCloudIfDataAvailable();
+    }
+    break;
+  }
+
+  default:
+    LOG(FATAL) << "Unknown frame type: " << static_cast<int>(stream_type);
   }
 }
 
@@ -791,7 +776,7 @@ void ZR300::publishPointCloudIfDataAvailable() {
   pointcloud_publisher_.publish(points_msg);
 }
 
-void ZR300::motionCallback(const rs::motion_data& entry) {
+void ZR300::motionCallback(const rs::motion_data &entry) {
   const rs::event motion_event =
       static_cast<rs::event>(entry.timestamp_data.source_id);
   const double motion_timestamp =
@@ -801,69 +786,69 @@ void ZR300::motionCallback(const rs::motion_data& entry) {
             << entry.timestamp_data.frame_number;
 
   switch (motion_event) {
-    case rs::event::event_imu_gyro: {
-      // Provide a time update to the time translator.
-      const ros::Time time_now = ros::Time::now();
-      device_time_translator_->update(
-          static_cast<std::uint64_t>(
-              entry.timestamp_data.timestamp * kMillisecondsToNanoseconds),
-          time_now);
+  case rs::event::event_imu_gyro: {
+    // Provide a time update to the time translator.
+    const ros::Time time_now = ros::Time::now();
+    device_time_translator_->update(
+        static_cast<std::uint64_t>(entry.timestamp_data.timestamp *
+                                   kMillisecondsToNanoseconds),
+        time_now);
 
-      ++angular_velocity_index_;
-      if (angular_velocity_index_ <
-          static_cast<size_t>(config_.imu_skip_first_n_gyro_measurements)) {
-        return;
-      }
-
-      std::vector<ImuSynchronizer::ImuData> imu_data;
-      imu_synchronizer_.registerGyroMeasurement(
-          motion_timestamp,
-          Eigen::Vector3d(entry.axes[0], entry.axes[1], entry.axes[2]),
-          &imu_data);
-
-      if (imu_publisher_.getNumSubscribers() == 0) {
-        LOG_EVERY_N(WARNING, 2000) << "No subscribers for the IMU data found!";
-        return;
-      }
-
-      for (const ImuSynchronizer::ImuData& item : imu_data) {
-        sensor_msgs::ImuPtr msg = boost::make_shared<sensor_msgs::Imu>();
-
-        msg->header.stamp = device_time_translator_->translate(
-            item.timestamp * kMillisecondsToNanoseconds);
-
-        msg->header.seq = entry.timestamp_data.frame_number;
-        msg->header.frame_id = "imu";
-
-        msg->angular_velocity.x = item.angular_velocity[0];
-        msg->angular_velocity.y = item.angular_velocity[1];
-        msg->angular_velocity.z = item.angular_velocity[2];
-
-        msg->linear_acceleration.x = item.acceleration[0];
-        msg->linear_acceleration.y = item.acceleration[1];
-        msg->linear_acceleration.z = item.acceleration[2];
-
-        msg->orientation_covariance[0] = -1.0;  // No orientation estimate.
-
-        imu_publisher_.publish(msg);
-      }
-      break;
+    ++angular_velocity_index_;
+    if (angular_velocity_index_ <
+        static_cast<size_t>(config_.imu_skip_first_n_gyro_measurements)) {
+      return;
     }
-    case rs::event::event_imu_accel: {
-      imu_synchronizer_.registerAccelerometerMeasurement(
-          motion_timestamp,
-          Eigen::Vector3d(entry.axes[0], entry.axes[1], entry.axes[2]));
 
-      break;
+    std::vector<ImuSynchronizer::ImuData> imu_data;
+    imu_synchronizer_.registerGyroMeasurement(
+        motion_timestamp,
+        Eigen::Vector3d(entry.axes[0], entry.axes[1], entry.axes[2]),
+        &imu_data);
+
+    if (imu_publisher_.getNumSubscribers() == 0) {
+      LOG_EVERY_N(WARNING, 2000) << "No subscribers for the IMU data found!";
+      return;
     }
-    default:
-      LOG(FATAL) << "Unknown motion tracking event: "
-                 << static_cast<int>(entry.timestamp_data.source_id);
+
+    for (const ImuSynchronizer::ImuData &item : imu_data) {
+      sensor_msgs::ImuPtr msg = boost::make_shared<sensor_msgs::Imu>();
+
+      msg->header.stamp = device_time_translator_->translate(
+          item.timestamp * kMillisecondsToNanoseconds);
+
+      msg->header.seq = entry.timestamp_data.frame_number;
+      msg->header.frame_id = "imu";
+
+      msg->angular_velocity.x = item.angular_velocity[0];
+      msg->angular_velocity.y = item.angular_velocity[1];
+      msg->angular_velocity.z = item.angular_velocity[2];
+
+      msg->linear_acceleration.x = item.acceleration[0];
+      msg->linear_acceleration.y = item.acceleration[1];
+      msg->linear_acceleration.z = item.acceleration[2];
+
+      msg->orientation_covariance[0] = -1.0; // No orientation estimate.
+
+      imu_publisher_.publish(msg);
+    }
+    break;
+  }
+  case rs::event::event_imu_accel: {
+    imu_synchronizer_.registerAccelerometerMeasurement(
+        motion_timestamp,
+        Eigen::Vector3d(entry.axes[0], entry.axes[1], entry.axes[2]));
+
+    break;
+  }
+  default:
+    LOG(FATAL) << "Unknown motion tracking event: "
+               << static_cast<int>(entry.timestamp_data.source_id);
   }
 }
 
-void ZR300::invertExtrinsics(
-    const rs::extrinsics& T_A_B_in, rs::extrinsics* T_B_A) {
+void ZR300::invertExtrinsics(const rs::extrinsics &T_A_B_in,
+                             rs::extrinsics *T_B_A) {
   CHECK_NOTNULL(T_B_A);
 
   const rs::extrinsics T_A_B = T_A_B_in;
@@ -874,12 +859,12 @@ void ZR300::invertExtrinsics(
     }
   }
 
-  const float* R = T_B_A->rotation;
-  const float* t = T_A_B.translation;
+  const float *R = T_B_A->rotation;
+  const float *t = T_A_B.translation;
 
   T_B_A->translation[0] = -(R[0] * t[0] + R[3] * t[1] + R[6] * t[2]);
   T_B_A->translation[1] = -(R[1] * t[0] + R[4] * t[1] + R[7] * t[2]);
   T_B_A->translation[2] = -(R[2] * t[0] + R[5] * t[1] + R[8] * t[2]);
 };
 
-}  // namespace maplab_realsense
+} // namespace maplab_realsense
