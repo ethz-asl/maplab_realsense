@@ -169,6 +169,18 @@ void ZR300::configureStaticOptions() {
   // Configure depth.
   zr300_device_->set_options(
       config_.kDepthControlOptions, 10u, config_.depth_control_values);
+
+  // Configure IR.
+  zr300_device_->set_option(
+      rs::option::r200_lr_auto_exposure_enabled,
+      config_.infrared_auto_exposure);
+    zr300_device_->set_option(rs::option::r200_lr_gain, config_.infrared_gain);
+  if (!config_.infrared_auto_exposure) {
+    zr300_device_->set_option(
+        rs::option::r200_lr_exposure, config_.infrared_exposure);
+  }
+  zr300_device_->set_option(
+      rs::option::r200_emitter_enabled, config_.infrared_emitter_enabled);
 }
 
 void ZR300::enableSensorStreams() {

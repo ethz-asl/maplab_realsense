@@ -39,6 +39,12 @@ https://click.intel.com/media/ZR300-Product-Datasheet-Public-002.pdf -->
 
     <param name="infrared/enabled" value="false"/>
     <param name="infrared/subsample_factor" value="1"/>
+    <param name="infrared/enable_auto_exposure" value="true"/>
+    <param name="infrared/emitter_enabled" value="true"/>
+    <!-- Values for outdoor calibration, disable autoexposure
+         for these settings to take effect. -->
+    <param name="infrared/gain" value="1"/>
+    <param name="infrared/exposure" value="5"/>
 
     <param name="pointcloud/enabled" value="true"/>
   </node>

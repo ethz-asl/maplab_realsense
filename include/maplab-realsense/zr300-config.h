@@ -56,6 +56,10 @@ struct ZR300Config {
   // IR config.
   bool infrared_enabled = true;
   int infrared_subsample_factor = 1;
+  bool infrared_auto_exposure = true;
+  int infrared_gain = 0.5;
+  int infrared_exposure = 0;
+  bool infrared_emitter_enabled = true;
 
   // Pointcloud config.
   bool pointcloud_enabled = true;
