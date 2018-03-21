@@ -19,7 +19,7 @@ https://click.intel.com/media/ZR300-Product-Datasheet-Public-002.pdf -->
     <param name="fisheye/gain" value="9.0"/>
     <param name="fisheye/subsample_factor" value="1"/>
 
-    <param name="color/enabled" value="false"/>
+    <param name="color/enabled" value="true"/>
     <param name="color/width" value="640"/>
     <param name="color/height" value="480"/>
     <param name="color/fps" value="30"/>
@@ -37,9 +37,24 @@ https://click.intel.com/media/ZR300-Product-Datasheet-Public-002.pdf -->
     <param name="depth/min_max_filter_size" value="3"/>
     <param name="depth/min_max_filter_threshold" value="0.1"/>
 
-    <param name="infrared/enabled" value="false"/>
+    <param name="infrared/enabled" value="true"/>
     <param name="infrared/subsample_factor" value="1"/>
+    <param name="infrared/enable_auto_exposure" value="true"/>
+    <param name="infrared/emitter_enabled" value="true"/>
+    <!-- Values for outdoor calibration, disable autoexposure
+         for these settings to take effect. -->
+    <param name="infrared/gain" value="1"/>
+    <param name="infrared/exposure" value="5"/>
 
-    <param name="pointcloud/enabled" value="true"/>
+    <param name="pointcloud/enabled" value="false"/>
   </node>
+
+  <!-- Disable compression for depth -->
+  <group ns="zr300_node/depth/image_raw" >
+    <rosparam param="disable_pub_plugins">
+      - 'image_transport/compressedDepth'
+      - 'image_transport/theora'
+    </rosparam>
+  </group>
+
 </launch>
