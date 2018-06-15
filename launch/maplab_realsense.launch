@@ -46,11 +46,7 @@ https://click.intel.com/media/ZR300-Product-Datasheet-Public-002.pdf -->
     <param name="infrared/gain" value="1"/>
     <param name="infrared/exposure" value="5"/>
 
-<<<<<<< HEAD
     <param name="pointcloud/enabled" value="false"/>
-=======
-    <param name="pointcloud/enabled" value="true"/>
->>>>>>> 1d09495d2cd6bbf302c20dbb140cfbdeca2540a6
   </node>
 
   <!-- Disable compression for depth -->

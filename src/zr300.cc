@@ -239,7 +239,7 @@ void ZR300::retrieveCameraCalibrations() {
       *extrinsics = zr300_device->get_motion_extrinsics_from(stream);
       LOG(INFO) << "Retrieved imu to camera extrinsics for " << stream
                 << "\n translation: " << extrinsics->translation[0] << ", "
-                << extrinsics->translation[3] << ", "
+                << extrinsics->translation[1] << ", "
                 << extrinsics->translation[2]
                 << "\n rotation: " << extrinsics->rotation[0] << ", "
                 << extrinsics->rotation[1] << ", " << extrinsics->rotation[2]
@@ -279,12 +279,15 @@ void ZR300::retrieveCameraCalibrations() {
   getMotionExtrinsics(rs::stream::fisheye, zr300_device_, &T_imu_fisheye_);
 
   if (config_.fisheye_enabled) {
-    getExtrinsics(rs::stream::fisheye, zr300_device_, &T_fisheye_fisheye_);
+    // Since we use the fisheye as the baseframe, this transformation is
+    // identity.
+    rs::extrinsics T_eye;
+    getExtrinsics(rs::stream::fisheye, zr300_device_, &T_eye);
     rs::intrinsics intrinsics_fisheye;
     getIntrinsics(rs::stream::fisheye, zr300_device_, &intrinsics_fisheye);
 
     convertCalibrationToCameraInfoMsg(
-        intrinsics_fisheye, T_fisheye_fisheye_, &fisheye_camera_info_);
+        intrinsics_fisheye, T_eye, &fisheye_camera_info_);
   }
   if (config_.depth_enabled || config_.pointcloud_enabled) {
     getExtrinsics(rs::stream::depth, zr300_device_, &T_fisheye_depth_);
@@ -392,20 +395,16 @@ void ZR300::publishStaticTransforms() {
         T_fisheye_infrared_, stamp, parent, config_.kInfraredTopic));
   }
 
-  // NOTE: Should always be identity, since the fisheye frame is the frame of
-  // reference.
-  // extrinsics_transforms.push_back(convertExtrinsicsToTf(
-  //     T_fisheye_fisheye_, stamp, parent, config_.kFisheyeTopic));
-
   extrinsics_broadcaster_.sendTransform(extrinsics_transforms);
 }
 
 // Converts the realsense intrinsics and extrinsics to a camera info message.
-// Expects the intrinsics of the camera and the extrinsics as T_ir_x, where x
+// Expects the intrinsics of the camera and the extrinsics as T_fisheye_x, where
+// x
 // is the camera frame of the camera we want to publish the info from. The
 // base frame for all transformations is the infrared camera.
 void ZR300::convertCalibrationToCameraInfoMsg(
-    const rs::intrinsics& intrinsics, const rs::extrinsics& T_ir_x,
+    const rs::intrinsics& intrinsics, const rs::extrinsics& T_fisheye_x,
     sensor_msgs::CameraInfo* camera_info) {
   CHECK_NOTNULL(camera_info);
 
@@ -442,7 +441,7 @@ void ZR300::convertCalibrationToCameraInfoMsg(
   for (int row_idx = 0; row_idx < 3; ++row_idx) {
     for (int col_idx = 0; col_idx < 3; ++col_idx) {
       camera_info->R[row_idx * 3 + col_idx] =
-          T_ir_x.rotation[col_idx * 3 + row_idx];
+          T_fisheye_x.rotation[col_idx * 3 + row_idx];
     }
   }
 
@@ -460,11 +459,11 @@ void ZR300::convertCalibrationToCameraInfoMsg(
   camera_info->P[6] = intrinsics.ppy;
   camera_info->P[10] = 1.0;
 
-  rs::extrinsics T_x_ir;
-  invertExtrinsics(T_ir_x, &T_x_ir);
-  camera_info->P[3] = T_x_ir.translation[0];
-  camera_info->P[7] = T_x_ir.translation[1];
-  camera_info->P[11] = T_x_ir.translation[2];
+  rs::extrinsics T_x_fisheye;
+  invertExtrinsics(T_fisheye_x, &T_x_fisheye);
+  camera_info->P[3] = T_x_fisheye.translation[0];
+  camera_info->P[7] = T_x_fisheye.translation[1];
+  camera_info->P[11] = T_x_fisheye.translation[2];
 }
 
 void ZR300::depthToPointcloud(
@@ -913,6 +912,6 @@ void ZR300::invertExtrinsics(
   T_B_A->translation[0] = -(R[0] * t[0] + R[3] * t[1] + R[6] * t[2]);
   T_B_A->translation[1] = -(R[1] * t[0] + R[4] * t[1] + R[7] * t[2]);
   T_B_A->translation[2] = -(R[2] * t[0] + R[5] * t[1] + R[8] * t[2]);
-};
+}
 
 }  // namespace maplab_realsense

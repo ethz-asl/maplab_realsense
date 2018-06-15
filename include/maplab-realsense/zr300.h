@@ -1,6 +1,7 @@
 #ifndef MAPLAB_REALSENSE_ZR300_H_
 #define MAPLAB_REALSENSE_ZR300_H_
 
+#include <memory>
 #include <string>
 
 #include <cuckoo_time_translator/DeviceTimeTranslator.h>
@@ -79,7 +80,6 @@ class ZR300 {
   ros::Publisher pointcloud_publisher_;
 
   rs::extrinsics T_imu_fisheye_;
-  rs::extrinsics T_fisheye_fisheye_;
   sensor_msgs::CameraInfo fisheye_camera_info_;
   rs::extrinsics T_fisheye_depth_;
   sensor_msgs::CameraInfo depth_camera_info_;
