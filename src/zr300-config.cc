@@ -90,6 +90,19 @@ ZR300Config ZR300Config::getFromRosParams(const ros::NodeHandle& private_nh) {
       private_nh.param(
           "infrared/subsample_factor", config.infrared_subsample_factor,
           config.infrared_subsample_factor);
+      private_nh.param(
+          "infrared/enable_auto_exposure", config.infrared_auto_exposure,
+          config.infrared_auto_exposure);
+      if (!config.infrared_auto_exposure) {
+        private_nh.param(
+            "infrared/gain", config.infrared_gain, config.infrared_gain);
+        private_nh.param(
+            "infrared/exposure", config.infrared_exposure,
+            config.infrared_exposure);
+      }
+      private_nh.param(
+          "infrared/emitter_enabled", config.infrared_emitter_enabled,
+          config.infrared_emitter_enabled);
     }
   }
 

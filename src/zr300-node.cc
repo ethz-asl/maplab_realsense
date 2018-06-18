@@ -6,7 +6,7 @@
 #include <ros/ros.h>
 
 int main(int argc, char** argv) {
-  ros::init(argc, argv, "zr300node");
+  ros::init(argc, argv, "zr300_node");
   google::InitGoogleLogging(argv[0]);
   google::InstallFailureSignalHandler();
   FLAGS_alsologtostderr = true;

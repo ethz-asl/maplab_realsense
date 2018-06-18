@@ -1,6 +1,7 @@
 #ifndef MAPLAB_REALSENSE_ZR300_H_
 #define MAPLAB_REALSENSE_ZR300_H_
 
+#include <memory>
 #include <string>
 
 #include <cuckoo_time_translator/DeviceTimeTranslator.h>
@@ -69,19 +70,25 @@ class ZR300 {
   image_transport::CameraPublisher infrared_publisher_;
   image_transport::CameraPublisher infrared_2_publisher_;
   image_transport::CameraPublisher depth_publisher_;
+
+  // Used to publish color and depth camera info if depth and color is disabled
+  // but pointclouds are enabled.
+  ros::Publisher color_camera_info_publisher_;
+  ros::Publisher depth_camera_info_publisher_;
+
   ros::Publisher imu_publisher_;
   ros::Publisher pointcloud_publisher_;
 
-  rs::extrinsics T_infrared_fisheye_;
+  rs::extrinsics T_imu_fisheye_;
   sensor_msgs::CameraInfo fisheye_camera_info_;
-  rs::extrinsics T_infrared_depth_;
+  rs::extrinsics T_fisheye_depth_;
   sensor_msgs::CameraInfo depth_camera_info_;
-  rs::extrinsics T_infrared_infrared_;
+  rs::extrinsics T_fisheye_infrared_;
   rs::intrinsics intrinsics_depth_;
   sensor_msgs::CameraInfo infrared_camera_info_;
-  rs::extrinsics T_infrared_infrared_2_;
+  rs::extrinsics T_fisheye_infrared_2_;
   sensor_msgs::CameraInfo infrared_2_camera_info_;
-  rs::extrinsics T_infrared_color_;
+  rs::extrinsics T_fisheye_color_;
   rs::extrinsics T_color_infrared_;
   sensor_msgs::CameraInfo color_camera_info_;
   rs::intrinsics intrinsics_color_;

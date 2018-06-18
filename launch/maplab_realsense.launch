@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="ISO-8859-15"?>
+
+<!-- Have a look at the documentation to see which resolution
+and fps settings are supported:
+https://click.intel.com/media/ZR300-Product-Datasheet-Public-002.pdf -->
+
 <launch>
   <node pkg="maplab_realsense" type="zr300_node" name="zr300_node">
 
@@ -20,7 +25,7 @@
     <param name="color/fps" value="30"/>
     <param name="color/subsample_factor" value="1"/>
 
-    <param name="depth/enabled" value="true"/>
+    <param name="depth/enabled" value="false"/>
     <param name="depth/width" value="640"/>
     <param name="depth/height" value="480"/>
     <param name="depth/fps" value="30"/>
@@ -34,7 +39,22 @@
 
     <param name="infrared/enabled" value="true"/>
     <param name="infrared/subsample_factor" value="1"/>
+    <param name="infrared/enable_auto_exposure" value="true"/>
+    <param name="infrared/emitter_enabled" value="true"/>
+    <!-- Values for outdoor calibration, disable autoexposure
+         for these settings to take effect. -->
+    <param name="infrared/gain" value="1"/>
+    <param name="infrared/exposure" value="5"/>
 
-    <param name="pointcloud/enabled" value="true"/>
+    <param name="pointcloud/enabled" value="false"/>
   </node>
+
+  <!-- Disable compression for depth -->
+  <group ns="zr300_node/depth/image_raw" >
+    <rosparam param="disable_pub_plugins">
+      - 'image_transport/compressedDepth'
+      - 'image_transport/theora'
+    </rosparam>
+  </group>
+
 </launch>

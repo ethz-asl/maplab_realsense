@@ -74,26 +74,41 @@ void ZR300::stop() {
 void ZR300::initializePublishers(ros::NodeHandle* nh) {
   CHECK_NOTNULL(nh);
 
-  auto advertiseCamera = [nh](
-      const std::string& name,
-      const std::string& suffix) -> image_transport::CameraPublisher {
+  auto advertiseCamera =
+      [nh](
+          const std::string& name,
+          const std::string& suffix) -> image_transport::CameraPublisher {
     ros::NodeHandle _nh(*nh, name);
     image_transport::ImageTransport it(_nh);
     return it.advertiseCamera(suffix, 1);
   };
 
   if (config_.fisheye_enabled) {
-    fisheye_publisher_ = advertiseCamera(config_.kFisheyeTopic, config_.kImageSuffix);
+    fisheye_publisher_ =
+        advertiseCamera(config_.kFisheyeTopic, config_.kImageSuffix);
   }
   if (config_.color_enabled) {
-    color_publisher_ = advertiseCamera(config_.kColorTopic, config_.kImageSuffix);
+    color_publisher_ =
+        advertiseCamera(config_.kColorTopic, config_.kImageSuffix);
+  } else if (!config_.color_enabled && config_.pointcloud_enabled) {
+    ros::NodeHandle _nh(*nh, config_.kColorTopic);
+    color_camera_info_publisher_ =
+        _nh.advertise<sensor_msgs::CameraInfo>("camera_info", 1);
   }
+
   if (config_.infrared_enabled) {
-    infrared_publisher_ = advertiseCamera(config_.kInfraredTopic, config_.kImageSuffix);
-    infrared_2_publisher_ = advertiseCamera(config_.kInfrared2Topic, config_.kImageSuffix);
+    infrared_publisher_ =
+        advertiseCamera(config_.kInfraredTopic, config_.kImageSuffix);
+    infrared_2_publisher_ =
+        advertiseCamera(config_.kInfrared2Topic, config_.kImageSuffix);
   }
   if (config_.depth_enabled) {
-    depth_publisher_ = advertiseCamera(config_.kDepthTopic, config_.kImageSuffix);
+    depth_publisher_ =
+        advertiseCamera(config_.kDepthTopic, config_.kImageSuffix);
+  } else if (!config_.depth_enabled && config_.pointcloud_enabled) {
+    ros::NodeHandle _nh(*nh, config_.kDepthTopic);
+    depth_camera_info_publisher_ =
+        _nh.advertise<sensor_msgs::CameraInfo>("camera_info", 1);
   }
 
   if (config_.imu_enabled) {
@@ -154,6 +169,18 @@ void ZR300::configureStaticOptions() {
   // Configure depth.
   zr300_device_->set_options(
       config_.kDepthControlOptions, 10u, config_.depth_control_values);
+
+  // Configure IR.
+  zr300_device_->set_option(
+      rs::option::r200_lr_auto_exposure_enabled,
+      config_.infrared_auto_exposure);
+    zr300_device_->set_option(rs::option::r200_lr_gain, config_.infrared_gain);
+  if (!config_.infrared_auto_exposure) {
+    zr300_device_->set_option(
+        rs::option::r200_lr_exposure, config_.infrared_exposure);
+  }
+  zr300_device_->set_option(
+      rs::option::r200_emitter_enabled, config_.infrared_emitter_enabled);
 }
 
 void ZR300::enableSensorStreams() {
@@ -183,12 +210,12 @@ void ZR300::enableSensorStreams() {
 }
 
 void ZR300::retrieveCameraCalibrations() {
-  auto getExtrinsics = [](
-      rs::stream stream, rs::device* zr300_device, rs::extrinsics* extrinsics) {
+  auto getExtrinsics = [](rs::stream stream, rs::device* zr300_device,
+                          rs::extrinsics* extrinsics) {
     CHECK_NOTNULL(zr300_device);
     CHECK_NOTNULL(extrinsics);
     try {
-      *extrinsics = zr300_device->get_extrinsics(stream, rs::stream::infrared);
+      *extrinsics = zr300_device->get_extrinsics(stream, rs::stream::fisheye);
       LOG(INFO) << "Retrieved extrinsics for " << stream
                 << "\n translation: " << extrinsics->translation[0] << ", "
                 << extrinsics->translation[3] << ", "
@@ -204,9 +231,31 @@ void ZR300::retrieveCameraCalibrations() {
                  << stream << "\nerror: " << e.what();
     }
   };
+  auto getMotionExtrinsics = [](rs::stream stream, rs::device* zr300_device,
+                                rs::extrinsics* extrinsics) {
+    CHECK_NOTNULL(zr300_device);
+    CHECK_NOTNULL(extrinsics);
+    try {
+      *extrinsics = zr300_device->get_motion_extrinsics_from(stream);
+      LOG(INFO) << "Retrieved imu to camera extrinsics for " << stream
+                << "\n translation: " << extrinsics->translation[0] << ", "
+                << extrinsics->translation[1] << ", "
+                << extrinsics->translation[2]
+                << "\n rotation: " << extrinsics->rotation[0] << ", "
+                << extrinsics->rotation[1] << ", " << extrinsics->rotation[2]
+                << ", " << extrinsics->rotation[3] << ", "
+                << extrinsics->rotation[4] << ", " << extrinsics->rotation[5]
+                << ", " << extrinsics->rotation[6] << ", "
+                << extrinsics->rotation[7] << ", " << extrinsics->rotation[8];
+    } catch (rs::error& e) {
+      LOG(FATAL)
+          << "Failed to retrieve imu to camera extrinsics for stream type: "
+          << stream << "\nerror: " << e.what();
+    }
+  };
 
-  auto getIntrinsics = [](
-      rs::stream stream, rs::device* zr300_device, rs::intrinsics* intrinsics) {
+  auto getIntrinsics = [](rs::stream stream, rs::device* zr300_device,
+                          rs::intrinsics* intrinsics) {
     CHECK_NOTNULL(zr300_device);
     CHECK_NOTNULL(intrinsics);
     try {
@@ -227,25 +276,29 @@ void ZR300::retrieveCameraCalibrations() {
     }
   };
 
+  getMotionExtrinsics(rs::stream::fisheye, zr300_device_, &T_imu_fisheye_);
+
   if (config_.fisheye_enabled) {
-    getExtrinsics(rs::stream::fisheye, zr300_device_, &T_infrared_fisheye_);
+    // Since we use the fisheye as the baseframe, this transformation is
+    // identity.
+    rs::extrinsics T_eye;
+    getExtrinsics(rs::stream::fisheye, zr300_device_, &T_eye);
     rs::intrinsics intrinsics_fisheye;
     getIntrinsics(rs::stream::fisheye, zr300_device_, &intrinsics_fisheye);
 
     convertCalibrationToCameraInfoMsg(
-        intrinsics_fisheye, T_infrared_fisheye_, &fisheye_camera_info_);
+        intrinsics_fisheye, T_eye, &fisheye_camera_info_);
   }
   if (config_.depth_enabled || config_.pointcloud_enabled) {
-    getExtrinsics(rs::stream::depth, zr300_device_, &T_infrared_depth_);
+    getExtrinsics(rs::stream::depth, zr300_device_, &T_fisheye_depth_);
     getIntrinsics(rs::stream::depth, zr300_device_, &intrinsics_depth_);
 
     convertCalibrationToCameraInfoMsg(
-        intrinsics_depth_, T_infrared_depth_, &depth_camera_info_);
+        intrinsics_depth_, T_fisheye_depth_, &depth_camera_info_);
   }
   if (config_.infrared_enabled) {
-    getExtrinsics(
-        rs::stream::infrared2, zr300_device_, &T_infrared_infrared_2_);
-    getExtrinsics(rs::stream::infrared, zr300_device_, &T_infrared_infrared_);
+    getExtrinsics(rs::stream::infrared2, zr300_device_, &T_fisheye_infrared_2_);
+    getExtrinsics(rs::stream::infrared, zr300_device_, &T_fisheye_infrared_);
 
     rs::intrinsics intrinsics_infrared;
     getIntrinsics(rs::stream::infrared, zr300_device_, &intrinsics_infrared);
@@ -253,25 +306,38 @@ void ZR300::retrieveCameraCalibrations() {
     getIntrinsics(rs::stream::infrared2, zr300_device_, &intrinsics_infrared_2);
 
     convertCalibrationToCameraInfoMsg(
-        intrinsics_infrared, T_infrared_infrared_, &infrared_camera_info_);
+        intrinsics_infrared, T_fisheye_infrared_, &infrared_camera_info_);
     convertCalibrationToCameraInfoMsg(
-        intrinsics_infrared_2, T_infrared_infrared_2_,
-        &infrared_2_camera_info_);
+        intrinsics_infrared_2, T_fisheye_infrared_2_, &infrared_2_camera_info_);
   }
 
   if (config_.color_enabled || config_.pointcloud_enabled) {
-    getExtrinsics(rs::stream::color, zr300_device_, &T_infrared_color_);
+    getExtrinsics(rs::stream::color, zr300_device_, &T_fisheye_color_);
     getIntrinsics(rs::stream::color, zr300_device_, &intrinsics_color_);
 
-    invertExtrinsics(T_infrared_color_, &T_color_infrared_);
+    invertExtrinsics(T_fisheye_color_, &T_color_infrared_);
 
     convertCalibrationToCameraInfoMsg(
-        intrinsics_color_, T_infrared_color_, &color_camera_info_);
+        intrinsics_color_, T_fisheye_color_, &color_camera_info_);
   }
 
   try {
     rs::motion_intrinsics imu_intrinsics =
         zr300_device_->get_motion_intrinsics();
+
+    LOG(INFO) << "IMU INTRINSICS: ";
+    LOG(INFO) << "acc noise var: " << imu_intrinsics.acc.noise_variances[0]
+              << ", " << imu_intrinsics.acc.noise_variances[1] << ", "
+              << imu_intrinsics.acc.noise_variances[2];
+    LOG(INFO) << "acc bias var: " << imu_intrinsics.acc.bias_variances[0]
+              << ", " << imu_intrinsics.acc.bias_variances[1] << ", "
+              << imu_intrinsics.acc.bias_variances[2];
+    LOG(INFO) << "gyro noise var: " << imu_intrinsics.gyro.noise_variances[0]
+              << ", " << imu_intrinsics.gyro.noise_variances[1] << ", "
+              << imu_intrinsics.gyro.noise_variances[2];
+    LOG(INFO) << "gyro bias var: " << imu_intrinsics.gyro.bias_variances[0]
+              << ", " << imu_intrinsics.gyro.bias_variances[1] << ", "
+              << imu_intrinsics.gyro.bias_variances[2];
   } catch (rs::error& e) {
     LOG(FATAL) << "Unable to get IMU intrinsics: " << e.what();
   }
@@ -306,27 +372,39 @@ geometry_msgs::TransformStamped ZR300::convertExtrinsicsToTf(
 void ZR300::publishStaticTransforms() {
   std::vector<geometry_msgs::TransformStamped> extrinsics_transforms;
   ros::Time stamp = ros::Time::now();
-  const std::string parent = config_.kInfraredTopic;
+
   extrinsics_transforms.push_back(convertExtrinsicsToTf(
-      T_infrared_color_, stamp, parent, config_.kColorTopic));
-  extrinsics_transforms.push_back(convertExtrinsicsToTf(
-      T_infrared_depth_, stamp, parent, config_.kDepthTopic));
-  extrinsics_transforms.push_back(convertExtrinsicsToTf(
-      T_infrared_fisheye_, stamp, parent, config_.kFisheyeTopic));
-  extrinsics_transforms.push_back(convertExtrinsicsToTf(
-      T_infrared_infrared_2_, stamp, parent, config_.kInfrared2Topic));
-  extrinsics_transforms.push_back(convertExtrinsicsToTf(
-      T_infrared_infrared_, stamp, parent, config_.kInfraredTopic));
+      T_imu_fisheye_, stamp, config_.kImuTopic, config_.kFisheyeTopic));
+
+  const std::string parent = config_.kFisheyeTopic;
+
+  if (config_.color_enabled || config_.pointcloud_enabled) {
+    extrinsics_transforms.push_back(convertExtrinsicsToTf(
+        T_fisheye_color_, stamp, parent, config_.kColorTopic));
+  }
+
+  if (config_.depth_enabled || config_.pointcloud_enabled) {
+    extrinsics_transforms.push_back(convertExtrinsicsToTf(
+        T_fisheye_depth_, stamp, parent, config_.kDepthTopic));
+  }
+
+  if (config_.infrared_enabled) {
+    extrinsics_transforms.push_back(convertExtrinsicsToTf(
+        T_fisheye_infrared_2_, stamp, parent, config_.kInfrared2Topic));
+    extrinsics_transforms.push_back(convertExtrinsicsToTf(
+        T_fisheye_infrared_, stamp, parent, config_.kInfraredTopic));
+  }
 
   extrinsics_broadcaster_.sendTransform(extrinsics_transforms);
 }
 
 // Converts the realsense intrinsics and extrinsics to a camera info message.
-// Expects the intrinsics of the camera and the extrinsics as T_ir_x, where x is
-// the camera frame of the camera we want to publish the info from.
-// The base frame for all transformations is the infrared camera.
+// Expects the intrinsics of the camera and the extrinsics as T_fisheye_x, where
+// x
+// is the camera frame of the camera we want to publish the info from. The
+// base frame for all transformations is the infrared camera.
 void ZR300::convertCalibrationToCameraInfoMsg(
-    const rs::intrinsics& intrinsics, const rs::extrinsics& T_ir_x,
+    const rs::intrinsics& intrinsics, const rs::extrinsics& T_fisheye_x,
     sensor_msgs::CameraInfo* camera_info) {
   CHECK_NOTNULL(camera_info);
 
@@ -363,7 +441,7 @@ void ZR300::convertCalibrationToCameraInfoMsg(
   for (int row_idx = 0; row_idx < 3; ++row_idx) {
     for (int col_idx = 0; col_idx < 3; ++col_idx) {
       camera_info->R[row_idx * 3 + col_idx] =
-          T_ir_x.rotation[col_idx * 3 + row_idx];
+          T_fisheye_x.rotation[col_idx * 3 + row_idx];
     }
   }
 
@@ -381,11 +459,11 @@ void ZR300::convertCalibrationToCameraInfoMsg(
   camera_info->P[6] = intrinsics.ppy;
   camera_info->P[10] = 1.0;
 
-  rs::extrinsics T_x_ir;
-  invertExtrinsics(T_ir_x, &T_x_ir);
-  camera_info->P[3] = T_x_ir.translation[0];
-  camera_info->P[7] = T_x_ir.translation[1];
-  camera_info->P[11] = T_x_ir.translation[2];
+  rs::extrinsics T_x_fisheye;
+  invertExtrinsics(T_fisheye_x, &T_x_fisheye);
+  camera_info->P[3] = T_x_fisheye.translation[0];
+  camera_info->P[7] = T_x_fisheye.translation[1];
+  camera_info->P[11] = T_x_fisheye.translation[2];
 }
 
 void ZR300::depthToPointcloud(
@@ -411,7 +489,7 @@ void ZR300::depthToPointcloud(
         pcl::PointXYZRGB point_out;
 
         rs::float2 image_coord = intrinsics_color_.project(
-            T_color_infrared_.transform(T_infrared_depth_.transform(point)));
+            T_color_infrared_.transform(T_fisheye_depth_.transform(point)));
         image_coord.x = std::round(image_coord.x);
         image_coord.y = std::round(image_coord.y);
         if ((image_coord.x < rgb_color_image.cols) && (image_coord.x >= 0) &&
@@ -535,7 +613,7 @@ void ZR300::frameCallback(const rs::frame& frame) {
       break;
     }
     case rs::stream::color: {
-      if (color_publisher_.getNumSubscribers() == 0) {
+      if (color_publisher_.getNumSubscribers() == 0 && config_.color_enabled) {
         LOG_EVERY_N(WARNING, config_.color_fps * 20)
             << "No subscribers for the color images found!";
         return;
@@ -576,8 +654,12 @@ void ZR300::frameCallback(const rs::frame& frame) {
           boost::make_shared<sensor_msgs::CameraInfo>(color_camera_info_);
       camera_info_msg->header = msg->header;
 
-      // Publish image.
-      color_publisher_.publish(msg, camera_info_msg);
+      if (config_.color_enabled) {
+        // Publish image.
+        color_publisher_.publish(msg, camera_info_msg);
+      } else if (!config_.color_enabled && config_.pointcloud_enabled) {
+        color_camera_info_publisher_.publish(camera_info_msg);
+      }
 
       if (config_.pointcloud_enabled) {
         publishPointCloudIfDataAvailable();
@@ -588,7 +670,8 @@ void ZR300::frameCallback(const rs::frame& frame) {
     // Fall through intended.
     case rs::stream::infrared: {
       if (infrared_2_publisher_.getNumSubscribers() == 0 &&
-          infrared_publisher_.getNumSubscribers() == 0) {
+          infrared_publisher_.getNumSubscribers() == 0 &&
+          config_.infrared_enabled) {
         LOG_EVERY_N(WARNING, 300)
             << "No subscribers for the infrared images found!";
         return;
@@ -622,7 +705,9 @@ void ZR300::frameCallback(const rs::frame& frame) {
             boost::make_shared<sensor_msgs::CameraInfo>(infrared_camera_info_);
         camera_info_msg->header = msg->header;
 
-        infrared_publisher_.publish(msg, camera_info_msg);
+        if (config_.infrared_enabled) {
+          infrared_publisher_.publish(msg, camera_info_msg);
+        }
       } else if (stream_type == rs::stream::infrared2) {
         // Check if timestamp is strictly monotonically increasing.
         CHECK_GT(sensor_timestamp_s, last_infrared_2_frame_timestamp_s_);
@@ -636,12 +721,14 @@ void ZR300::frameCallback(const rs::frame& frame) {
                 infrared_2_camera_info_);
         camera_info_msg->header = msg->header;
 
-        infrared_2_publisher_.publish(msg, camera_info_msg);
+        if (config_.infrared_enabled) {
+          infrared_2_publisher_.publish(msg, camera_info_msg);
+        }
       }
       break;
     }
     case rs::stream::depth: {
-      if (depth_publisher_.getNumSubscribers() == 0) {
+      if (depth_publisher_.getNumSubscribers() == 0 && config_.depth_enabled) {
         LOG_EVERY_N(WARNING, config_.depth_fps * 20)
             << "No subscribers for the depth maps found!";
         return;
@@ -684,8 +771,12 @@ void ZR300::frameCallback(const rs::frame& frame) {
           boost::make_shared<sensor_msgs::CameraInfo>(depth_camera_info_);
       camera_info_msg->header = msg->header;
 
-      // Publish image.
-      depth_publisher_.publish(msg, camera_info_msg);
+      if (config_.depth_enabled) {
+        // Publish image.
+        depth_publisher_.publish(msg, camera_info_msg);
+      } else if (!config_.depth_enabled && config_.pointcloud_enabled) {
+        depth_camera_info_publisher_.publish(camera_info_msg);
+      }
 
       if (config_.pointcloud_enabled) {
         publishPointCloudIfDataAvailable();
@@ -821,6 +912,6 @@ void ZR300::invertExtrinsics(
   T_B_A->translation[0] = -(R[0] * t[0] + R[3] * t[1] + R[6] * t[2]);
   T_B_A->translation[1] = -(R[1] * t[0] + R[4] * t[1] + R[7] * t[2]);
   T_B_A->translation[2] = -(R[2] * t[0] + R[5] * t[1] + R[8] * t[2]);
-};
+}
 
 }  // namespace maplab_realsense

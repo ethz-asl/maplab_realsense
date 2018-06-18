@@ -1,6 +1,8 @@
 #ifndef MAPLAB_REALSENSE_ZR300_CONFIG_H_
 #define MAPLAB_REALSENSE_ZR300_CONFIG_H_
 
+#include <string>
+
 #include <librealsense/rs.hpp>
 #include <librealsense/rsutil.h>
 #include <ros/ros.h>
@@ -56,6 +58,10 @@ struct ZR300Config {
   // IR config.
   bool infrared_enabled = true;
   int infrared_subsample_factor = 1;
+  bool infrared_auto_exposure = true;
+  float infrared_gain = 0.5;
+  int infrared_exposure = 0;
+  bool infrared_emitter_enabled = true;
 
   // Pointcloud config.
   bool pointcloud_enabled = true;
